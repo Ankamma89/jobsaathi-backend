@@ -5,30 +5,28 @@
   <meta charset="UTF-8" />
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dashboard | A2ZRecruit</title>
+  <title>All Jobs | A2ZRecruit</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-  rel="shortcut icon"
-  href="{{url_for('static', filename='images/favicon.png')}}"
-  type="image/x-icon"
-/>
+  <link rel="shortcut icon" href="{{url_for('static', filename='images/favicon.png')}}" type="image/x-icon" />
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Satoshi">
+
 
   <link rel="stylesheet" href="{{url_for('static', filename='naukri/css/jobs.css')}}" />
   <link rel="stylesheet" href="{{url_for('static', filename='naukri/css/searchbar.css')}}" />
   <script src="https://kit.fontawesome.com/629044acfa.js" crossorigin="anonymous"></script>
   <style>
-      .reset-div {
-        margin: 0;
-        padding: 0;
-        border: none;
-        background: none;
-        display: contents;
-        /* Add any other default styles you want to reset */
+    .reset-div {
+      margin: 0;
+      padding: 0;
+      border: none;
+      background: none;
+      display: contents;
+      /* Add any other default styles you want to reset */
     }
+
     #nav {
       display: flex;
       width: 100%;
@@ -152,6 +150,16 @@
       color: white;
     }
 
+    .title {
+      padding: 0 10px;
+      display: none;
+    }
+
+    .t_button {
+      display: flex;
+      align-items: flex-start;
+    }
+
     .navibarr {
       margin: auto;
       width: 100vw;
@@ -165,8 +173,7 @@
       z-index: 1;
       background-color: white;
       height: 10vh;
-      font-family:Satoshi, sans-serif
-
+      font-family: Satoshi, sans-serif
     }
 
     .t_button_1 {
@@ -184,6 +191,13 @@
 
     }
 
+    .boxes {
+      background-color: orange;
+      padding:2px;
+      color: #FFFFFF;
+      border-radius: 3px;
+    }
+
     .t_button_2 {
       padding: 12px;
       width: 7vw;
@@ -194,20 +208,22 @@
       border: 1px solid transparent;
       cursor: pointer;
     }
-    .t_button_3{
-    margin-right: 18px;
-    padding: 12px;
-    width: 11vw;
-    font-weight: 600;
-    color: rgb(42, 184, 240);
-    border-radius:20px;
-  
-    cursor: pointer;
-    background: #FFFFFF;
-    border: 1px solid #88ADFF;
-    border-radius: 100px;
-  
-}
+
+    .t_button_3 {
+      margin-right: 18px;
+      padding: 12px;
+      width: 11vw;
+      font-weight: 600;
+      color: rgb(42, 184, 240);
+      border-radius: 20px;
+
+      cursor: pointer;
+      background: #FFFFFF;
+      border: 1px solid #88ADFF;
+      border-radius: 100px;
+
+    }
+
     .t_h3_J {
       font-size: 15px;
       line-height: 20px;
@@ -222,45 +238,55 @@
     -o-transition: all .3s ease-in-out; */
       box-sizing: border-box;
     }
+
     .hamburger-menu {
-    display: none; /* Hide by default on larger screens */
-    cursor: pointer;
-}
-
-/* Style for each bar in the hamburger menu */
-.bar {
-    width: 25px;
-    height: 3px;
-    background-color: #333;
-    margin: 5px 0;
-}
-#chatsicon-mob{
-  display: none;
-}
-/* Media query for smaller screens */
-@media (max-width: 790px) {
-  .hamburger-menu {
-    display: block;
-    /* margin: 22em; */
-    float: right;
-    margin-left: auto;
-    margin-right: 2rem;
-    /* justify-content: flex-end; */
+      display: none;
+      /* Hide by default on larger screens */
+      cursor: pointer;
     }
 
-    .t_elements {
-        display: none; /* Hide navigation links by default on smaller screens */
-    }
-    .t_button {
-        display: none; /* Hide navigation links by default on smaller screens */
-    }
-    .t_button {
-        display: none; /* Hide navigation links by default on smaller screens */
+    /* Style for each bar in the hamburger menu */
+    .bar {
+      width: 25px;
+      height: 3px;
+      background-color: #333;
+      margin: 5px 0;
     }
 
+    #chatsicon-mob {
+      display: none;
+    }
 
-    .t_elements.active {
-        display: flex; /* Show navigation links when hamburger menu is clicked */
+    /* Media query for smaller screens */
+    @media (max-width: 790px) {
+      .hamburger-menu {
+        display: block;
+        /* margin: 22em; */
+        float: right;
+        margin-left: auto;
+        margin-right: 2rem;
+        /* justify-content: flex-end; */
+      }
+
+      .t_elements {
+        display: none;
+        /* Hide navigation links by default on smaller screens */
+      }
+
+      .t_button {
+        display: none;
+        /* Hide navigation links by default on smaller screens */
+      }
+
+      .t_button {
+        display: none;
+        /* Hide navigation links by default on smaller screens */
+      }
+
+
+      .t_elements.active {
+        display: flex;
+        /* Show navigation links when hamburger menu is clicked */
         flex-direction: column;
         background-color: #fff;
         position: absolute;
@@ -270,88 +296,96 @@
         z-index: 10;
         padding: 20px;
         border-radius: 10px;
-    }
+      }
 
-    .t_elements.active a {
+      .t_elements.active a {
         margin: 10px 0;
-    }
-    body{
-      font-size: x-small;
-    }
-    #main{
-      width: 100vw;
-      margin: 0px auto;
-    }
+      }
 
-    #jobCardsContainer{
-      width: 67vw;
-    }
-    #filterContainer{
-      width: 17vw;
-      margin: 0 0;
-    }
-    #filterContainer > div{
-      width: 141px;
-    }
-    #featured{
-      display: none;
-    }
-    #searchalljobs{
-      margin-top: 10px;
-      width: 50vw
-    }
-    .card{
-      width: 54vw;
-    }
-    #chatsicon-mob{
-    display: block;
-  }
-    #chatsicon-desk{
-    display: none;
-  }
-  
-}
+      body {
+        font-size: x-small;
+      }
 
+      #main {
+        width: 100vw;
+        margin: 0px auto;
+      }
+
+      #jobCardsContainer {
+        width: 67vw;
+      }
+
+      #filterContainer {
+        width: 17vw;
+        margin: 0 0;
+      }
+
+      #filterContainer>div {
+        width: 30vw;
+      }
+
+      #featured {
+        display: none;
+      }
+
+      #searchalljobs {
+        margin-top: 10px;
+        width: 50vw
+      }
+
+      .card {
+        width: 54vw;
+      }
+
+      #chatsicon-mob {
+        display: block;
+      }
+
+      #chatsicon-desk {
+        display: none;
+      }
+
+    }
   </style>
   <style>
     .pagination {
       display: flex;
       overflow-x: auto;
     }
-    
+
     .pagination a {
       color: black;
       padding: 8px 16px;
       text-decoration: none;
       white-space: nowrap;
     }
-    
+
     .pagination a.active {
       background-color: orange;
       color: white;
       border-radius: 5px;
     }
-    
+
     .pagination a:hover:not(.active) {
       background-color: #ddd;
       border-radius: 5px;
     }
-    
+
     .pagination::-webkit-scrollbar {
       display: none;
     }
-    
+
     .pagination-container {
       width: 90%;
       display: flex;
       align-items: center;
     }
-    
+
     .arrow {
       cursor: pointer;
       padding: 8px;
     }
-    </style>
+  </style>
 </head>
 
 <body>
@@ -362,17 +396,12 @@
       <ul class="t_elements_container">
         <li class="t_elements_li">
           <a href="/alljobs" class="t_anchor_tag t_h3_J">
-            <p style="margin-right: 20px;font-size: 14px;text-decoration: none;" id="t_h3_J">All Jobs</p>
-          </a>
-        </li>
-        <li class="t_elements_li">
-          <a href="/alltasks" class="t_anchor_tag t_h3_J">
-            <p style="margin-right: 20px;font-size: 14px;text-decoration: none;" id="t_h3_J">All Tasks</p>
+            <h3 style="margin-right: 20px;font-size: 14px;text-decoration: none;" id="t_h3_J"><u>All Jobs</u></h3>
           </a>
         </li>
         <li class="t_elements_li">
           <a href="/dashboard" class="t_anchor_tag t_h3_J">
-            <h3 style="margin-right: 20px;font-size: 14px;text-decoration: none;" id="t_h3_J"><u>Recommended Jobs</u></h3>
+            <p style="margin-right: 20px;font-size: 14px;text-decoration: none;" id="t_h3_J">Recommended Jobs</p>
           </a>
         </li>
         <li class="t_elements_li">
@@ -395,33 +424,32 @@
             <p style="margin-right: 20px;font-size: 14px;text-decoration: none;" id="t_h3_J">Chats</p>
           </a>
         </li>
-        <li style="margin-left: 0px" id="chatsicon-desk">
-          <a class="dropbtn" href="/chats"
-          ><i class="far fa-bell fa-2x"></i
-          ><span class="badge">3</span></a
-        >
+        <li id="chatsicon-desk">
+          <a class="dropbtn" href="/chats"><i class="far fa-bell fa-2x"></i><span class="badge">3</span></a>
         </li>
+
       </ul>
     </div>
     <div class="hamburger-menu">
       <div class="bar"></div>
       <div class="bar"></div>
       <div class="bar"></div>
-  </div>
+    </div>
     <div class="t_button">
       <a href="/billbot"><button class="t_button_3">AI Resume Builder</button></a>
-      <a href="/logout-user"><button class="t_button_2">Logout</button></a>
+      <a href="/logout"><button class="t_button_2">Logout</button></a>
     </div>
     <div class="t_foremployers_container">
 
     </div>
   </div>
-
-
+  <div>
+    <h5 class="title">freelance jobs</h5>
+  </div>
   <div id="main">
     <div id="filterContainer">
       <div>
-        <div id="form-header" class="d-flex jc-sb" style="border-radius: 10px;">
+        <div id="form-header" class="d-flex jc-sb" style="border-radius: 15px;border: 1px solid #ebecef;">
           <p class="bold-font">
             <img src="icons/filter_list.png" alt="" id="filter-icon" /> All
             Filters
@@ -433,7 +461,7 @@
 
 
           <!-- salary filters -->
-          <div class="form-group" id="salaryFilterContainer" style="border-radius: 10px;">
+          <div class="form-group" id="salaryFilterContainer" style="border-radius: 15px;border: 1px solid #ebecef;">
             <div class="d-flex jc-sb">
               <p class="bold-font">Job Type</p>
               <!-- <i class="fas fa-chevron-down"></i> -->
@@ -465,7 +493,7 @@
             </div>
           </div>
 
-          <div class="form-group" style="border-radius: 10px;">
+          <div class="form-group" style="border-radius: 15px;border: 1px solid #ebecef;">
             <p class="bold-font">Experience Level</p>
             <div class="d-flex col" id="locationsFilter">
               <div>
@@ -498,46 +526,51 @@
     <div>
       <!-- <div id="statistics">placeholder</div> -->
       <div id="jobCardsContainer">
-        <input type="text" style="width: 90% ; height:4vh; border-radius: 12px;border: none; padding: 0 10px;"  placeholder="Search by title/designation/company" id="searchalljobs">
-        {% for job in all_jobs %}
-        <div class="card" id="{{job['job_id']}}" style="display: block;border-radius: 20px;margin-top: 1.2rem;">
-          <input type="hidden" name="Any All">
-         <a href="/apply/job/{{job['job_id']}}" style="text-decoration: none;color: black;"><h4>{{job['job_title']}}</h4></a>
-          <div class="med-font d-flex">
-            <p>{{job['company_name']}} </p>
-            <p></p>
-          </div>
-          <div class="small-grey-txt">
-            <div class="d-flex">
-              <div><img src="static/images/work_icon.png" style="height: 18px; margin-right: 5px;"> {{job['experience_level']}} | {{job['job_type']}}</div>
-              <div><img src="static/images/location_icon.png" style="height: 18px; margin-right: 5px;">{{job['mode_of_work']}}</div>
+        <input type="text" style="width: 90% ; height:4vh; border-radius: 15px; border: none; padding: 0 10px;"
+          placeholder="Search by title/designation/company" id="searchalljobs">
+        {% for job in all_tasks %}
+        <div class="card" id="{{job['job_id']}}"
+          style="display: block;padding-top: 0px;padding-bottom: 0px; margin-top: 1.2rem;">
+          <div style="display: flex;justify-content: space-between;">
+            <div style="padding: 15px;">
+              <a href="/apply/task/{{job['task_id']}}" style="text-decoration: none;color: black;">
+                <p style="margin: 0;">{{job['task_title']}}</p>
+              </a>
+              <p class="posted" style="border-radius: 15px;"><i class="fa fa-history" aria-hidden="true"></i>
+                Fixed Price | 761 DAYS AGO
+              </p>
+              <div class="small-grey-txt">
+                <div>{{job['task_description']}}</div>
+                <br>
+              </div>
+              <div>
+                <div class="med-font d-flex">
+                  <div class="boxes">
+                    abcd
+                  </div>
+                </div>
+              </div>
             </div>
-            <br>
-          </div>
-          <div>
-            <p class="posted" style="border-radius: 15px;"><i class="fa fa-history" aria-hidden="true"></i> 15 DAYS AGO</p>
-            {% if job['saved_jobs_details'] == [] %}
-                  <!-- <div class="col-7" id="saveBtn-{{job['job_id']}}"><button type="button" class="btn btn-outline-default text-xxs" onclick="saveJob(`{{job['job_id']}}`)">Save Job</button></div> -->
-                  <div class="reset-div" id="saveBtn-{{job['job_id']}}"><button class="save-btn" style="float: right; margin-top: 11px;" onclick="saveJob(`{{job['job_id']}}`)"><i class="far fa-star" aria-hidden="true"></i> Save</button></div>
-                {% else %}
-                <!-- <div class="col-7" id="saveBtn-{{job['job_id']}}">
-                    <button type="button"  class="btn bg-gradient-primary text-xxs" onclick="removeSavedJob(`{{job['job_id']}}`)">Saved</button>
-                </div> -->
-                <div class="reset-div" id="saveBtn-{{job['job_id']}}"><button class="save-btn" style="float: right; margin-top: 11px;" onclick="removeSavedJob(`{{job['job_id']}}`)"><i class="fa fa-star" aria-hidden="true"></i> Saved</button></div>
-                {% endif %}
-            <!-- <button class="save-btn"><i class="far fa-star" aria-hidden="true"></i> Save</button> -->
+            <div style="border-left:1px solid #f1f1f1;padding:15px;display: flex;flex-direction: column;align-items: center;justify-content: center;">
+              <h5 style="margin: 0px !important;">₹1234</h5>
+              <p>10 PROPOSALS</p>
+              <div>
+                <a href="/apply/task/{{job['task_id']}}" class="btn btn-primary btn-sm mb-0 me-3" style="border-radius:3px;text-decoration:none;color:orange;padding:4px;border:1px solid orange">View & Apply</a>
+              </div>
+            </div>
           </div>
         </div>
         {% endfor %}
+
         <center>
           <div class="pagination-container" style="margin-top: 17px;">
             <div class="arrow" id="leftArrow">&laquo;</div>
             <div class="pagination">
               {% for num in range(total_pages) %}
               {% if page_number == num+1 %}
-              <a href="/dashboard?pageno={{page_number}}" class="active">{{num+1}}</a>
+              <a href="/alljobs?pageno={{page_number}}" class="active">{{num+1}}</a>
               {% else %}
-              <a href="/dashboard?pageno={{num+1}}">{{num+1}}</a>
+              <a href="/alljobs?pageno={{num+1}}">{{num+1}}</a>
               {% endif %}
               {% endfor %}
             </div>
@@ -548,14 +581,16 @@
     </div>
     <div id="featured">
       <div id="recmd-reg" style="border-radius: 20px;">
-        <div class="d-flex" >
+        <div class="d-flex">
           <h4>Use our AI to build your resume in seconds.</h4>
           <img src="https://static.naukri.com/s/7/109/assets/images/register.e0bc10df.png" alt="" height="60px" />
         </div>
         <p>
-          Click on the button below and access our revolutionary chatbot called "Billbot" to build resume using normal chats.
+          Click on the button below and access our revolutionary chatbot called "Billbot" to build resume using normal
+          chats.
         </p>
-        <button style="border-radius: 20px;"><a href="/billbot" style="text-decoration: none;color: white;">BillBot</a></button>
+        <button style="border-radius: 20px;"><a href="/billbot"
+            style="text-decoration: none;color: white;">BillBot</a></button>
       </div>
       <div id="featured-comp" style="border-radius: 20px;">
         <h4>See 232 jobs in Featured Companies</h4>
@@ -570,56 +605,57 @@
       </div>
     </div>
   </div>
+
   <style>
     body {
       margin: 0;
       padding: 0;
       font-family: Arial, sans-serif;
     }
-    
+
     .footer {
       background-color: #333;
       color: #fff;
       padding: 20px 0;
     }
-    
+
     .container {
       max-width: 1200px;
       margin: 0 auto;
       padding: 0 20px;
     }
-    
+
     .footer-content {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
       flex-wrap: wrap;
     }
-    
+
     .footer-section {
       flex: 1;
       margin: 0 10px;
     }
-    
+
     .footer-section h3 {
       margin-top: 0;
     }
-    
+
     .footer-section ul {
       list-style: none;
       padding: 0;
       margin: 0;
     }
-    
+
     .footer-section ul li {
       margin-bottom: 5px;
     }
-    
+
     .footer-section ul li a {
       color: #fff;
       text-decoration: none;
     }
-    
+
     /* Media Query for responsiveness */
     @media (max-width: 768px) {
       .footer-section {
@@ -627,207 +663,206 @@
         margin: 10px 0;
       }
     }
-    
-      </style>
-      <footer class="footer" style="margin-top: 10px;">
-        <div class="container">
-          <div class="footer-content">
-            <div class="footer-section">
-              <h3>Contact Us</h3>
-              <p>Email: <a href="mailto:contact@example.com" style="color: white;">contact@example.com</a></p>
-              <p>Phone: <a href="tel:7974378884" style="color: white;">7974378884</a></p>
-            </div>
-            <div class="footer-section">
-              <h3>Important Links</h3>
-              <ul>
-                <li><a href="/about-us" >About Us</a></li>
-                <li><a href="/services" >Services</a></li>
-                <li><a href="/faqs" >FAQs</a></li>
-              </ul>
-            </div>
-            <div class="footer-section">
-              <h3>Follow Us</h3>
-              <ul>
-                <li><a href="/facebook">Facebook</a></li>
-                <li><a href="/facebook">Twitter</a></li>
-                <li><a href="/facebook">Instagram</a></li>
-              </ul>
-            </div>
-            <div class="footer-section">
-              <h3>Checkout our apps</h3>
-              <div>
-                <img src="https://static.naukimg.com/s/0/0/i/new-homepage/android-app.png" alt="">
-            </div>
-            <div>
-                <img src="https://static.naukimg.com/s/0/0/i/new-homepage/ios-app.png" alt="">
-            </div>
-            </div>
+  </style>
+  <footer class="footer" style="margin-top: 10px;">
+    <div class="container">
+      <div class="footer-content">
+        <div class="footer-section">
+          <h3>Contact Us</h3>
+          <p>Email: <a href="mailto:contact@example.com" style="color: white;">contact@example.com</a></p>
+          <p>Phone: <a href="tel:7974378884" style="color: white;">7974378884</a></p>
+        </div>
+        <div class="footer-section">
+          <h3>Important Links</h3>
+          <ul>
+            <li><a href="/about-us">About Us</a></li>
+            <li><a href="/services">Services</a></li>
+            <li><a href="/faqs">FAQs</a></li>
+          </ul>
+        </div>
+        <div class="footer-section">
+          <h3>Follow Us</h3>
+          <ul>
+            <li><a href="/facebook">Facebook</a></li>
+            <li><a href="/facebook">Twitter</a></li>
+            <li><a href="/facebook">Instagram</a></li>
+          </ul>
+        </div>
+        <div class="footer-section">
+          <h3>Checkout our apps</h3>
+          <div>
+            <img src="https://static.naukimg.com/s/0/0/i/new-homepage/android-app.png" alt="">
+          </div>
+          <div>
+            <img src="https://static.naukimg.com/s/0/0/i/new-homepage/ios-app.png" alt="">
           </div>
         </div>
-      </footer>
-<script>
-          document.getElementById("searchalljobs").addEventListener('input', function(event){
-            // alert(event.target.value)
-            all_card_body = document.getElementsByClassName("card")
-            let count = 0
-            for(let i=0;i<all_card_body.length;i++){
-              // console.log(all_card_body[i].style.display)
-              
-                // count+=1
-                data = all_card_body[i].innerHTML.toString()
-                  if(data.toLowerCase().includes(event.target.value.toLowerCase())){
-                      count = count+1
-                        all_card_body[i].style.display = "block"
-                  }
-                  else{
-                      all_card_body[i].style.display = "none"
+      </div>
+    </div>
+  </footer>
+  <script>
+    document.getElementById("searchalljobs").addEventListener('input', function (event) {
+      // alert(event.target.value)
+      all_card_body = document.getElementsByClassName("card")
+      let count = 0
+      for (let i = 0; i < all_card_body.length; i++) {
+        // console.log(all_card_body[i].style.display)
 
-                  }
-              
-            }
-            console.log(count)
+        // count+=1
+        data = all_card_body[i].innerHTML.toString()
+        if (data.toLowerCase().includes(event.target.value.toLowerCase())) {
+          count = count + 1
+          all_card_body[i].style.display = "block"
+        }
+        else {
+          all_card_body[i].style.display = "none"
+
+        }
+
+      }
+      console.log(count)
+    })
+    function saveJob(job_id) {
+      data = {
+        "mbsa": "mbsa"
+      }
+      fetch(`/save/job/${job_id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      })
+        .then(response => response.json())
+        .then(data => {
+
+          if (data.status == "saved") {
+            console.log("mbsa")
+            console.log(document.getElementById(`saveBtn-${job_id}`))
+            document.getElementById(`saveBtn-${job_id}`).innerHTML = ""
+            document.getElementById(`saveBtn-${job_id}`).innerHTML = `<button class="save-btn" style="float: right; margin-top: 11px;" onclick="removeSavedJob('${job_id}')"><i class="fa fa-star" aria-hidden="true"></i> Saved</button>`
+          }
+          else {
+            alert('Error saving the job.')
+          }
         })
-   function saveJob(job_id){
-            data = {
-              "mbsa": "mbsa"
-            }
-            fetch(`/save/job/${job_id}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(data),
-            })
-            .then(response => response.json())
-            .then(data => {
-              
-              if (data.status == "saved"){
-                console.log("mbsa")
-                console.log(document.getElementById(`saveBtn-${job_id}`))
-                  document.getElementById(`saveBtn-${job_id}`).innerHTML = ""
-                  document.getElementById(`saveBtn-${job_id}`).innerHTML = `<button class="save-btn" style="float: right; margin-top: 11px;" onclick="removeSavedJob('${job_id}')"><i class="fa fa-star" aria-hidden="true"></i> Saved</button>`
-              }
-              else{
-                alert('Error saving the job.')
-              }
-            })
-            .catch((error) => {
-              alert('Error saving the job. Try again later!')
-            });
+        .catch((error) => {
+          alert('Error saving the job. Try again later!')
+        });
 
-  }
-  function removeSavedJob(job_id){
-        data = {
-              "mbsa": "mbsa"
-            }
-            fetch(`/remove_saved_job/${job_id}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(data),
-            })
-            .then(response => response.json())
-            .then(data => {
-              
-              if (data.status == "deleted"){
-                console.log(document.getElementById(`saveBtn-${job_id}`))
-                  document.getElementById(`saveBtn-${job_id}`).innerHTML = ""
-                  document.getElementById(`saveBtn-${job_id}`).innerHTML = `<button class="save-btn" style="float: right; margin-top: 11px;" onclick="saveJob('${job_id}')"><i class="far fa-star" aria-hidden="true"></i> Save</button>`
-              }
-              else{
-                alert('Error removing the job.')
-              }
-            })
-            .catch((error) => {
-              alert('Error removing the job. Try again later!')
-            });
+    }
+    function removeSavedJob(job_id) {
+      data = {
+        "mbsa": "mbsa"
       }
-      all_filters = {}
-        function attachCheckboxEventListener() {
-          const checkboxes = document.querySelectorAll('input[type="checkbox"]');
-          checkboxes.forEach(function(checkbox) {
-              checkbox.addEventListener('change', function() {
-                if(checkbox.checked){
-                  all_filters[checkbox.id] = 1;
-                  filter_jobs()
-                }
-                else{
-                  delete all_filters[checkbox.id]
-                  filter_jobs()
-                  console.log(all_filters)
-                  console.log(all_filters.length)
-                    if(Object.keys(all_filters).length == 0){
-                      show_all_cards()
-                    }
-                    // else if(all_filters['All'] || all_filters['Any']){
-                    //   show_all_cards()
-                    // }
-                }
-              });
-          });
-      }
-      function filter_jobs(){
-        all_card_body = document.getElementsByClassName("card")
-            let count = 0
-        
-            for(let i=0;i<all_card_body.length;i++){
-                  data = all_card_body[i].innerHTML.toString()
-                  let show = true;
-                  for(const key in all_filters)
-                  {
-                    if(data.toLowerCase().includes(key.toLowerCase())){
-                        count = count+1
-                        show = show && true;
-                        // break
-                    }
-                    else{
-                      show = show && false;
-                    }
-                }
-                if(show){
-                  all_card_body[i].style.display = "block"
-                }
-                else{
-                  all_card_body[i].style.display = "none"
-                }
-            }
-          
-            console.log(count)
-      }
-      function show_all_cards(){
-        all_card_body = document.getElementsByClassName("card")
-        
-            for(let i=0;i<all_card_body.length;i++){
-              all_card_body[i].style.display = "block"
+      fetch(`/remove_saved_job/${job_id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      })
+        .then(response => response.json())
+        .then(data => {
 
+          if (data.status == "deleted") {
+            console.log(document.getElementById(`saveBtn-${job_id}`))
+            document.getElementById(`saveBtn-${job_id}`).innerHTML = ""
+            document.getElementById(`saveBtn-${job_id}`).innerHTML = `<button class="save-btn" style="float: right; margin-top: 11px;" onclick="saveJob('${job_id}')"><i class="far fa-star" aria-hidden="true"></i> Save</button>`
+          }
+          else {
+            alert('Error removing the job.')
+          }
+        })
+        .catch((error) => {
+          alert('Error removing the job. Try again later!')
+        });
+    }
+    all_filters = {}
+    function attachCheckboxEventListener() {
+      const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+      checkboxes.forEach(function (checkbox) {
+        checkbox.addEventListener('change', function () {
+          if (checkbox.checked) {
+            all_filters[checkbox.id] = 1;
+            filter_jobs()
+          }
+          else {
+            delete all_filters[checkbox.id]
+            filter_jobs()
+            console.log(all_filters)
+            console.log(all_filters.length)
+            if (Object.keys(all_filters).length == 0) {
+              show_all_cards()
             }
-          
-      }
-        attachCheckboxEventListener();
-</script>
-<script>
-  document.addEventListener('DOMContentLoaded', function() {
-    const hamburgerMenu = document.querySelector('.hamburger-menu');
-    const navElements = document.querySelector('.t_elements');
+            // else if(all_filters['All'] || all_filters['Any']){
+            //   show_all_cards()
+            // }
+          }
+        });
+      });
+    }
+    function filter_jobs() {
+      all_card_body = document.getElementsByClassName("card")
+      let count = 0
 
-    hamburgerMenu.addEventListener('click', function() {
+      for (let i = 0; i < all_card_body.length; i++) {
+        data = all_card_body[i].innerHTML.toString()
+        let show = true;
+        for (const key in all_filters) {
+          if (data.toLowerCase().includes(key.toLowerCase())) {
+            count = count + 1
+            show = show && true;
+            // break
+          }
+          else {
+            show = show && false;
+          }
+        }
+        if (show) {
+          all_card_body[i].style.display = "block"
+        }
+        else {
+          all_card_body[i].style.display = "none"
+        }
+      }
+
+      console.log(count)
+    }
+    function show_all_cards() {
+      all_card_body = document.getElementsByClassName("card")
+
+      for (let i = 0; i < all_card_body.length; i++) {
+        all_card_body[i].style.display = "block"
+
+      }
+
+    }
+    attachCheckboxEventListener();
+  </script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const hamburgerMenu = document.querySelector('.hamburger-menu');
+      const navElements = document.querySelector('.t_elements');
+
+      hamburgerMenu.addEventListener('click', function () {
         navElements.classList.toggle('active');
+      });
     });
-});
- </script>
+  </script>
   <script>
     const paginationContainer = document.querySelector('.pagination');
     const leftArrow = document.getElementById('leftArrow');
     const rightArrow = document.getElementById('rightArrow');
-  
+
     leftArrow.addEventListener('click', () => {
       paginationContainer.scrollBy({
         left: -100,
         behavior: 'smooth'
       });
     });
-  
+
     rightArrow.addEventListener('click', () => {
       paginationContainer.scrollBy({
         left: 100,
@@ -843,7 +878,7 @@
         });
       }
     }
-  
+
     // Call the function initially and on window resize
     bringActiveIntoView();
     window.addEventListener('resize', bringActiveIntoView);
