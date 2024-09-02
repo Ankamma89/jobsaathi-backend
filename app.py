@@ -753,9 +753,11 @@ def login_user():
                if user.get("onboarded")==True:
                 session["onboarded"]=True 
                if user.get("role")=="jobseeker":
-                session["purpose"]="candidate"
+                  role="candidate"
+               if user.get("role")=="hirer":
+                  role="hirer"
                flash("Successfully Logged In")
-               return jsonify({"message":"logged in","data":{"token":token,"onboarded":user.get("onboarded")}}),200
+               return jsonify({"message":"logged in","data":{"token":token,"user":{"name":user.get("name"),"purpose":role,"onboarded":user.get("onboarded")}}}),200
             else:
                return jsonify({"message":"login failed"}),400
         else:
@@ -795,7 +797,9 @@ def register_hirer():
         if user is None:
             email = form_data.get("email")
             password = form_data.get("password")
+            name = form_data.get("name")
             user_data = {
+                "name":name,
                 "user_id":user_id,
                 "email": email,
                 "password": password,
@@ -819,6 +823,7 @@ def register_jobseeker():
         if user_details_collection.find_one({"email": form_data.get("email")},{"_id": 0}) is None:
             email = form_data.get("email")
             password = form_data.get("password")
+            name = form_data.get("name")
             user_details = {
                 "user_id":  user_id,           
                 "email": email,
