@@ -16,6 +16,7 @@ import google.auth.transport.requests
 import uuid
 import time
 import pusher
+from flask_cors import CORS
 
 pusher_client = pusher.Pusher(
   app_id=os.environ['PUSHER_APP_ID'],
@@ -26,6 +27,8 @@ pusher_client = pusher.Pusher(
 )
 
 app = Flask(__name__)
+# Enable CORS for the entire app
+CORS(app)
 app.secret_key = os.environ['APP_SECRET']
 
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
@@ -810,6 +813,7 @@ def register_hirer():
 @app.route('/register-jobseeker', methods=['GET', 'POST'], endpoint="register_jobseeker")
 def register_jobseeker():
     form_data = request.get_json(force=True) 
+    print(form_data,'formdatteee')
     user_id=str(uuid.uuid4())
     if request.method == 'POST':
         if user_details_collection.find_one({"email": form_data.get("email")},{"_id": 0}) is None:
