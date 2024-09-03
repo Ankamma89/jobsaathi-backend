@@ -53,26 +53,38 @@ def login_is_required(function):
             return function(*args, **kwargs)
     return wrapper
 
+def extract_bearer_token(request):
+    auth_header = request.headers.get('Authorization')
+    if auth_header and auth_header.startswith('Bearer '):
+        return auth_header.split(' ')[1]
+    return None
+
+def get_user(token):
+    user_id = jwt.decode(token, APP_SECRET,algorithms=['HS256']).get('public_id')
+    if user_id is None:
+        return redirect("/") 
+    else:
+        current_user = user_details_collection.find_one({"user_id": user_id},{"_id": 0})
+        return current_user
+
 def newlogin_is_required(function):
     def wrapper(*args, **kwargs):
-        if "token" not in session:
+        token=extract_bearer_token(request)
+        user=get_user(token)
+        if user is None:
             return redirect("/") 
         else:
-            token = session.get("token")
-            user_id = jwt.decode(token, APP_SECRET,algorithms=['HS256']).get('public_id')
-            if user_id is None:
-             return redirect("/") 
-            else:
-             current_user = user_details_collection.find_one({"user_id": user_id},{"_id": 0})
-             return function(current_user,*args, **kwargs)
+             return function(user,*args, **kwargs)
     return wrapper
 
 def is_candidate(function):
     def wrapper(*args, **kwargs):
-        if "purpose" not in session:
+        token=extract_bearer_token(request)
+        user = get_user(token)
+        if user is None:
             return abort(500)  
         else:
-            purpose = session.get('purpose')
+            purpose = user.role
             if purpose == "candidate":
                 return function(*args, **kwargs)
             else:
@@ -81,10 +93,12 @@ def is_candidate(function):
 
 def is_hirer(function):
     def wrapper(*args, **kwargs):
-        if "purpose" not in session:
-            return abort(500)  
+        token=extract_bearer_token(request)
+        user = get_user(token)
+        if user is None:
+            return abort(500)   
         else:
-            purpose = session.get('purpose')
+            purpose = user.get('role')
             if purpose == "hirer":
                 return function(*args, **kwargs)
             else:
@@ -93,7 +107,11 @@ def is_hirer(function):
 
 def is_onboarded(function):
     def wrapper(*args, **kwargs):
-        onboarded = session.get("onboarded")
+        token=extract_bearer_token(request)
+        user = get_user(token)
+        if user is None:
+            return abort(500)  
+        onboarded = user.get("onboarded")
         if onboarded:
             return function(*args, **kwargs)
         else:
@@ -133,10 +151,10 @@ def start():
         return redirect("/dashboard")
     
 @app.route("/searchJobs",methods = ['GET'])   
-def search_jobs():
+def search_jobs(user):
     searched_for = request.args.get("search")
     logged_in = True
-    if session.get('google_id') is None:
+    if user.get('user_id') is None:
         logged_in = False
     if logged_in:
         return redirect("/dashboard")
@@ -247,14 +265,14 @@ def alljobs(user):
 
 @app.route("/dashboard", methods = ['GET'], endpoint='dashboard')
 @newlogin_is_required
-def dashboard(current_user):
-    user_name = session.get("name")
-    onboarded = session.get("onboarded")
-    user_id = current_user.get("user_id")
+def dashboard(user):
+    user_name = user.get("name")
+    onboarded = user.get("onboarded")
+    user_id = user.get("user_id")
     if onboarded == False:
-        if current_user.get("role")=='jobseeker':
+        if user.get("role")=='jobseeker':
          return redirect("/onboarding-jobseeker")
-        if current_user.get("role")=='hirer':
+        if user.get("role")=='hirer':
          return redirect("/onboarding-recruiter")
     onboarding_details = onboarding_details_collection.find_one({"user_id": user_id},{"_id": 0})
     purpose = onboarding_details.get("purpose")
@@ -378,10 +396,10 @@ def dashboard(current_user):
     
 @app.route("/job_support", methods = ['GET'], endpoint='job_support')
 @newlogin_is_required
-def job_support():
-    user_name = session.get("name")
-    onboarded = session.get("onboarded")
-    user_id = session.get("google_id")
+def job_support(user):
+    user_name = user.get("name")
+    onboarded = user.get("onboarded")
+    user_id = user.get("user_id")
     if onboarded == False:
         return redirect("/onboarding")
     onboarding_details = onboarding_details_collection.find_one({"user_id": user_id},{"_id": 0})
@@ -508,8 +526,8 @@ def job_support():
 @newlogin_is_required
 @is_candidate
 def applied_jobs(user):
-    user_name = session.get("name")
-    onboarded = session.get("onboarded")
+    user_name = user.get("name")
+    onboarded = user.get("onboarded")
     user_id = user.get("user_id")
     if onboarded == False:
         return redirect("/onboarding")
@@ -570,7 +588,7 @@ def applied_jobs(user):
 @is_candidate
 def saved_jobs(user):
     user_name = user.get("user_id")
-    onboarded = session.get("onboarded")
+    onboarded = user.get("onboarded")
     user_id = user.get("user_id")
     if onboarded == False:
         return redirect("/onboarding")
@@ -634,7 +652,7 @@ def saved_jobs(user):
 @is_candidate
 def profile_update(user):
     user_id = user.get("user_id")
-    purpose = session.get("purpose")
+    purpose = user.get("role")
     if request.method == 'POST':
         profile_data = dict(request.form)
         if 'description' in profile_data:
@@ -685,7 +703,7 @@ def public_candidate_profile(user_id):
 @newlogin_is_required
 @is_candidate
 def upload_intro_candidate():
-    user_id = session.get("user_id")
+    user_id = user.get("user_id")
     if 'intro_video' in request.files and str(request.files['intro_video'].filename)!="":
         intro_video = request.files['intro_video']
         intro_video_link = upload_file_firebase(intro_video, f"{user_id}/intro_video.mp4")
@@ -696,9 +714,9 @@ def upload_intro_candidate():
 
 @app.route("/login")
 def login():
-    if session.get('google_id') is None:
+    if user.get('google_id') is None:
         authorization_url, state = flow.authorization_url()
-        session["state"] = state
+        user["state"] = state
         return redirect(authorization_url)
     else:
         flash({'type':'error', 'data':"Your are already Logged In"})
@@ -718,11 +736,6 @@ def login_hirer():
                'public_id': user.get("user_id"),
                'exp' : '300000000000000000000000000000000000'
                 }, APP_SECRET)
-               session["token"]=token
-               if user.get("onboarded")==False:
-                session["onboarded"]=False
-               if user.get("role")=='hirer':
-                session["purpose"]='hirer'
                flash("Successfully Logged In")
                return redirect(f'/dashboard')
             else:
@@ -747,11 +760,6 @@ def login_user():
                'public_id': user.get("user_id"),
                'exp' : '30000000000000000000000000'
                 }, APP_SECRET)
-               session["token"]=token
-               if user.get("onboarded")==False:
-                session["onboarded"]=False
-               if user.get("onboarded")==True:
-                session["onboarded"]=True 
                if user.get("role")=="jobseeker":
                   role="candidate"
                if user.get("role")=="hirer":
@@ -778,9 +786,6 @@ def login_job_seeker():
                'public_id': user.user_id,
                'exp' : '30000000000000000000000000'
                 }, APP_SECRET)
-               session["token"]=token
-               if user.get("onboarded")==False:
-                session["onboarded"]=False
                flash("Successfully Logged In")
                return jsonify({"message":"logged in","data":{"token":"token","onboarded":False}}),200
         else:
@@ -840,6 +845,7 @@ def register_jobseeker():
     else:
         return render_template("register_job_seeker.html")
 
+@newlogin_is_required
 @app.route("/logout-user", methods = ['GET'])
 def logout_user():
     if "token" not in session:
@@ -857,14 +863,6 @@ def mbsa():
 def mbsa1():
     return render_template('mbsa.html')
 
-@app.route("/logout", methods = ['GET'])
-def logout():
-    if "google_id" not in session:
-        return redirect("/")
-    all_keys = list(session.keys())
-    for key in all_keys:
-        session.pop(key)
-    return redirect("/")
 
 @app.route("/billbot", methods = ['GET', 'POST'], endpoint='chatbot')
 @newlogin_is_required
@@ -892,7 +890,7 @@ def chatbot(user):
             # messages = [{"user":"billbot","msg": "Hi, The right side of your screen will display your resume. You can give me instruction to build it in the chat."},{"user":"billbot","msg": "You can give me information regarding your inroduction, skills, experiences, achievements and projects. I will create a professional resume for you!"}]
             if resume_details := resume_details_collection.find_one({"user_id": user_id},{"_id": 0}):
                 resume_html = resume_details.get("resume_html")
-                resume_built = session.get("resume_built")
+                resume_built = True
                 return jsonify({"messages":messages, "resume_html":resume_html, "resume_built":resume_built, "nxt_build_status":nxt_build_status}) 
             else:
                 abort(500,{"message":"Something went wrong! Contact ADMIN!"})
@@ -1108,10 +1106,8 @@ def onboarding(user):
             onboarding_details = dict(request.form)
             if user_details := user_details_collection.find_one({"user_id": user_id},{"_id": 0}):
              if user_details.get('role')=='jobseeker':
-                     session['purpose'] = 'candidate'
                      purpose='candidate'
              if user_details.get('role')=='hirer':
-                     session['purpose'] = 'hirer'
                      purpose='hirer'
              onboarding_details['user_id'] = user_id
              if user_details.get("onboarded") == False:
@@ -1121,7 +1117,6 @@ def onboarding(user):
                         onboarding_details['phase'] = "1"
                         onboarding_details['build_status'] = "introduction"
                         onboarding_details['resume_built'] = False
-                        session['resume_built'] = False
                         profile_data = {
                             "user_id": user_details.get("user_id"),
                             "name": onboarding_details.get("candidate_name"),
@@ -1146,15 +1141,14 @@ def onboarding(user):
                         abort(500, {"message": "Onboarding couldn't be completed due to some technical issue!"})
                     onboarding_details_collection.insert_one(onboarding_details)
                     user_details_collection.update_one({"user_id": user_id}, {"$set":data})
-                    session['onboarded'] = True
                     return jsonify({"message":"successfully onboarded"}),200
              else:
                     abort(500, {"message": "User already Onboarded."})
-    onboarded = session.get('onboarded')
+    onboarded = user.get('onboarded')
     if onboarded == True:
-        purpose = session.get("purpose")
+        purpose = user.get("role")
         return redirect("/dashboard")
-    user_name = session.get("name")
+    user_name = user.get("name")
     return jsonify({'user_name':user_name})
     
 @app.route("/onboarding-recruiter", methods=['GET', 'POST'],endpoint="onboardingRecruiter")
@@ -1285,8 +1279,8 @@ def create_job(user):
 @app.route('/edit/job/<string:job_id>', methods=['GET', 'POST'], endpoint="edit_job")
 @newlogin_is_required
 @is_hirer
-def edit_job(job_id):
-    user_id = session.get("user_id")
+def edit_job(user,job_id):
+    user_id = user.get("user_id")
     if request.method == 'POST':
         incoming_details = dict(request.form)
         jobs_details_collection.update_one({"user_id": str(user_id), "job_id": str(job_id)},{"$set": incoming_details})
@@ -1297,8 +1291,8 @@ def edit_job(job_id):
 @app.route('/delete/job/<string:job_id>', methods=['POST'], endpoint="delete_job")
 @newlogin_is_required
 @is_hirer
-def delete_job(job_id):
-    user_id = session.get("user_id")
+def delete_job(user,job_id):
+    user_id = user.get("user_id")
     if request.method == 'POST':
         jobs_details_collection.delete_one({"user_id": str(user_id), "job_id": str(job_id)})
         return redirect('/dashboard')
@@ -1306,8 +1300,8 @@ def delete_job(job_id):
 @app.route('/save/job/<string:job_id>', methods=['POST'], endpoint="save_job")
 @newlogin_is_required
 @is_candidate
-def save_job(job_id):
-    user_id = session.get("user_id")
+def save_job(user,job_id):
+    user_id = user.get("user_id")
     if _ := saved_jobs_collection.find_one({"user_id": user_id, "job_id": job_id},{"_id": 0}):
         return "error"
     else:
@@ -1335,8 +1329,8 @@ def create_task(user):
 @app.route('/edit/task/<string:task_id>', methods=['GET', 'POST'], endpoint="edit_task")
 @newlogin_is_required
 @is_hirer
-def edit_task(task_id):
-    user_id = session.get("user_id")
+def edit_task(user,task_id):
+    user_id = user.get("user_id")
     if request.method == 'POST':
         incoming_details = dict(request.form)
         tasks_details_collection.update_one({"user_id": str(user_id), "task_id": str(task_id)},{"$set": incoming_details})
@@ -1469,8 +1463,8 @@ def job_responses(job_id):
 @is_candidate
 @newlogin_is_required
 def alltasks(user):
-    user_name = session.get("name")
-    onboarded = session.get("onboarded")
+    user_name = user.get("name")
+    onboarded = user.get("onboarded")
     user_id = user.get("user_id")
     if onboarded == False:
         return redirect("/onboarding")
@@ -1634,7 +1628,7 @@ def task_responses(task_id):
 @newlogin_is_required
 def all_chats(user):
     user_id = user.get("user_id")
-    purpose = session.get("purpose")
+    purpose = user.get("purpose")
     key = "hirer_id" if purpose == "hirer" else "candidate_id"
     localField = "hirer_id" if purpose == "candidate" else "candidate_id"
     localAs = "hirer_details" if purpose == "candidate" else "candidate_details"
@@ -1673,9 +1667,9 @@ def all_chats(user):
 import time
 @app.route("/chat/<string:incoming_user_id>/<string:job_id>", methods=['GET', 'POST'], endpoint='specific_chat')
 @newlogin_is_required
-def specific_chat(incoming_user_id, job_id):
-    user_id = session.get("user_id")
-    purpose = session.get("purpose")
+def specific_chat(user,incoming_user_id, job_id):
+    user_id = user.get("user_id")
+    purpose = user.get("role")
     if request.method == 'POST':
         msg = dict(request.json).get('msg')
         chat_details = {
@@ -1734,8 +1728,8 @@ def initiate_chat():
     
 @app.route("/meet/<string:channel_id>", methods=['GET'], endpoint='meeting')
 @newlogin_is_required
-def meeting(channel_id):
-    purpose = session.get("purpose")
+def meeting(user,channel_id):
+    purpose = user.get("role")
     candidate_id, hirer_id, job_id = channel_id.split("_")
     hirer_pipeline = [
            {
