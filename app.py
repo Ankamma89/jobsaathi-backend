@@ -1014,6 +1014,18 @@ def allusers():
     users=list(user_details_collection.find({}, {'_id': 0}))
     return jsonify({"users":users})
 
+
+@app.route("/allonboarding", methods = ['GET'], endpoint='allonboarding')
+def allonboarding():
+    users=list(onboarding_details_collection.find({}, {'_id': 0}))
+    return jsonify({"users":users})
+
+
+@app.route("/allprofiles", methods = ['GET'], endpoint='allprofiles')
+def allprofiles():
+    users=list(profile_details_collection.find({}, {'_id': 0}))
+    return jsonify({"users":users})
+
 @app.route("/callback")
 def callback():
     flow.fetch_token(authorization_response=request.url)
@@ -1093,7 +1105,7 @@ def onboarding(user):
         if  user_id is None:
             abort(401)
         else:
-            onboarding_details = request.get_json(force=True)
+            onboarding_details = dict(request.form)
             if user_details := user_details_collection.find_one({"user_id": user_id},{"_id": 0}):
              if user_details.get('role')=='jobseeker':
                      session['purpose'] = 'candidate'
