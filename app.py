@@ -825,6 +825,7 @@ def register_jobseeker():
             password = form_data.get("password")
             name = form_data.get("name")
             user_details = {
+                "name": name,
                 "user_id":  user_id,           
                 "email": email,
                 "password":password,
