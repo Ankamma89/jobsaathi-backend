@@ -1712,8 +1712,46 @@ def initiate_chat():
             candidate_job_application_collection.update_one({"user_id": jobseeker_id, "hirer_id": user_id, "job_id": job_id},{"$set": {"chat_initiated": True}})
         else:
             abort(500, {"message": "Either job_id or jobseeker_id is wrong!"})
-    return redirect(f"/chat/{candidate_id}/{job_id}")
+    return redirect(f"/chat/{user_id}/{job_id}")
+
+###### FAIZAN #####
+
+#Function to get user by id    
+def get_user_by_id(user_id):
+    return user_details_collection.find_one({"user_id": user_id}, {"_id": 0})
+#Function to verify user token 
+def verify_token(token):
+    try:
+        decoded = jwt.decode(token, app.secret_key, algorithms=['HS256'])
+        return decoded.get('public_id')
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
+
+#Route to verify token
+@app.route("/verify-token", methods=['POST'])
+def verify_token_route():
+    auth_header = request.headers.get('Authorization')
     
+    if not auth_header:
+        return jsonify({"valid": False, "message": "No token provided"}), 400
+    # Token with "Bearer " prefix
+    token = auth_header.split(" ")[1] 
+    user_id = verify_token(token)
+    
+    if user_id:
+        user = get_user_by_id(user_id) 
+        if user:
+            return jsonify({"valid": True, "user": user}), 200
+        else:
+            return jsonify({"valid": False, "message": "User not found"}), 404
+    else:
+        return jsonify({"valid": False, "message": "Invalid token"}), 401 
+
+
+########
+
 @app.route("/meet/<string:channel_id>", methods=['GET'], endpoint='meeting')
 @newlogin_is_required
 def meeting(user,channel_id):
