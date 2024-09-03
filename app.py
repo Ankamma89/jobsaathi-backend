@@ -85,7 +85,7 @@ def is_candidate(function):
             return abort(500)  
         else:
             purpose = user.role
-            if purpose == "candidate":
+            if purpose == "jobseeker":
                 return function(*args, **kwargs)
             else:
                 abort(500, {"message":{"You are not a candidate."}})
@@ -664,7 +664,7 @@ def profile_update(user):
         profile_details_collection.update_one({"user_id": user_id},{"$set": profile_data})
         return redirect('/profile')
     if profile_details := profile_details_collection.find_one({"user_id": user_id},{"_id": 0}):
-        if purpose == 'candidate':
+        if purpose == 'jobseeker':
             return jsonify({ 'profile_details':profile_details, 'user_id':user_id}) 
         elif purpose == 'hirer':
             return jsonify({'profile_details':profile_details})
@@ -702,25 +702,13 @@ def public_candidate_profile(user_id):
 @app.route("/upload_intro_candidate", methods=['POST'], endpoint='upload_intro_candidate')
 @newlogin_is_required
 @is_candidate
-def upload_intro_candidate():
+def upload_intro_candidate(user):
     user_id = user.get("user_id")
     if 'intro_video' in request.files and str(request.files['intro_video'].filename)!="":
         intro_video = request.files['intro_video']
         intro_video_link = upload_file_firebase(intro_video, f"{user_id}/intro_video.mp4")
         profile_details_collection.update_one({"user_id": user_id},{"$set": {"intro_video_link": intro_video_link}})
         return redirect('/profile')
-
-
-
-@app.route("/login")
-def login():
-    if user.get('google_id') is None:
-        authorization_url, state = flow.authorization_url()
-        user["state"] = state
-        return redirect(authorization_url)
-    else:
-        flash({'type':'error', 'data':"Your are already Logged In"})
-        return redirect("/")
 
 
 @app.route('/login-hirer', methods=['GET', 'POST'], endpoint="login_hirer")
@@ -761,7 +749,7 @@ def login_user():
                'exp' : '30000000000000000000000000'
                 }, APP_SECRET)
                if user.get("role")=="jobseeker":
-                  role="candidate"
+                  role="jobseeker"
                if user.get("role")=="hirer":
                   role="hirer"
                flash("Successfully Logged In")
@@ -1081,7 +1069,7 @@ def callback():
             onboarding_details = onboarding_details[0]
             session["purpose"] = onboarding_details.get("purpose")
             purpose = session["purpose"]
-            if purpose and purpose == "candidate":
+            if purpose and purpose == "jobseeker":
                 session["resume_built"] = onboarding_details.get("resume_built")
     else:
         user_data = {
@@ -1106,14 +1094,14 @@ def onboarding(user):
             onboarding_details = dict(request.form)
             if user_details := user_details_collection.find_one({"user_id": user_id},{"_id": 0}):
              if user_details.get('role')=='jobseeker':
-                     purpose='candidate'
+                     purpose='jobseeker'
              if user_details.get('role')=='hirer':
                      purpose='hirer'
              onboarding_details['user_id'] = user_id
              if user_details.get("onboarded") == False:
                     data = {"onboarded": True}
                     onboarding_details['status'] = "active"
-                    if purpose and purpose == "candidate":
+                    if purpose and purpose == "jobseeker":
                         onboarding_details['phase'] = "1"
                         onboarding_details['build_status'] = "introduction"
                         onboarding_details['resume_built'] = False
@@ -1167,7 +1155,7 @@ def onboardingRecruiter(user):
                     session['purpose'] = purpose
                     data = {"onboarded": True}
                     onboarding_details['status'] = "active"
-                    if purpose and purpose == "candidate":
+                    if purpose and purpose == "jobseeker":
                         onboarding_details['phase'] = "1"
                         onboarding_details['build_status'] = "introduction"
                         onboarding_details['resume_built'] = False
@@ -1222,7 +1210,7 @@ def onboardingJobseeker(user_id):
                     session['purpose'] = purpose
                     data = {"onboarded": True}
                     onboarding_details['status'] = "active"
-                    if purpose and purpose == "candidate":
+                    if purpose and purpose == "jobseeker":
                         onboarding_details['phase'] = "1"
                         onboarding_details['build_status'] = "introduction"
                         onboarding_details['resume_built'] = False
@@ -1630,8 +1618,8 @@ def all_chats(user):
     user_id = user.get("user_id")
     purpose = user.get("purpose")
     key = "hirer_id" if purpose == "hirer" else "candidate_id"
-    localField = "hirer_id" if purpose == "candidate" else "candidate_id"
-    localAs = "hirer_details" if purpose == "candidate" else "candidate_details"
+    localField = "hirer_id" if purpose == "jobseeker" else "candidate_id"
+    localAs = "hirer_details" if purpose == "jobseeker" else "candidate_details"
     pipeline = [
          {
                 "$match": {key: user_id}
@@ -1674,26 +1662,26 @@ def specific_chat(user,incoming_user_id, job_id):
         msg = dict(request.json).get('msg')
         chat_details = {
             "hirer_id": user_id if purpose == "hirer" else incoming_user_id,
-            "candidate_id": user_id if purpose == "candidate" else incoming_user_id,
+            "candidate_id": user_id if purpose == "jobseeker" else incoming_user_id,
             "job_id": job_id,
             "sent_by": purpose,
             "sent_on": datetime.now(),
             "msg": msg,
         }
         chat_details_collection.insert_one(chat_details)
-        channel_id = f"{user_id}_{incoming_user_id}_{job_id}" if purpose == "candidate" else f"{incoming_user_id}_{user_id}_{job_id}"
+        channel_id = f"{user_id}_{incoming_user_id}_{job_id}" if purpose == "jobseeker" else f"{incoming_user_id}_{user_id}_{job_id}"
         pusher_client.trigger(channel_id, purpose, {'msg': msg})
         return {"status": "saved"}
-    hirer_id = incoming_user_id if purpose == "candidate" else user_id
-    candidate_id = user_id if purpose == "candidate" else incoming_user_id
+    hirer_id = incoming_user_id if purpose == "jobseeker" else user_id
+    jobseeker_id = user_id if purpose == "jobseeker" else incoming_user_id
     if onboarding_details := onboarding_details_collection.find_one({"user_id": incoming_user_id},{"_id": 0}):
-        name = onboarding_details.get("company_name") if purpose == "candidate" else onboarding_details.get("candidate_name")
+        name = onboarding_details.get("company_name") if purpose == "jobseeker" else onboarding_details.get("jobseeker_name")
         pipeline = [
-            {"$match": {"hirer_id": hirer_id, "candidate_id": candidate_id, "job_id": job_id}},
+            {"$match": {"hirer_id": hirer_id, "jobseeker_id": jobseeker_id, "job_id": job_id}},
             {"$project": {"_id": 0}}
         ]
         all_chats = list(chat_details_collection.aggregate(pipeline))
-        channel_id = f"{user_id}_{incoming_user_id}_{job_id}" if purpose == "candidate" else f"{incoming_user_id}_{user_id}_{job_id}"
+        channel_id = f"{user_id}_{incoming_user_id}_{job_id}" if purpose == "jobseeker" else f"{incoming_user_id}_{user_id}_{job_id}"
         job_details = jobs_details_collection.find_one({"job_id": job_id},{"_id": 0,"job_title": 1})
         meet_details = {
             "meetLink": f"http://127.0.0.1:5000/meet/{channel_id}"
@@ -1708,22 +1696,22 @@ def specific_chat(user,incoming_user_id, job_id):
 def initiate_chat():
     user_id = session.get("user_id")
     form_data = dict(request.form)
-    candidate_id = form_data.get("candidate_id")
+    jobseeker_id = form_data.get("jobseeker_id")
     job_id = form_data.get("job_id")
-    if connection_details := connection_details_collection.find_one({"candidate_id": candidate_id, "hirer_id": user_id},{"_id": 0}):
+    if connection_details := connection_details_collection.find_one({"jobseeker_id": jobseeker_id, "hirer_id": user_id},{"_id": 0}):
         pass
     else:
-        if _ := candidate_job_application_collection.find_one({"user_id": candidate_id, "hirer_id": user_id, "job_id": job_id},{"_id": 0}):
+        if _ := candidate_job_application_collection.find_one({"user_id": jobseeker_id, "hirer_id": user_id, "job_id": job_id},{"_id": 0}):
             connection_details = {
             "created_on": datetime.now(),
             "hirer_id": user_id,
-            "candidate_id": candidate_id,
+            "jobseeker_id": jobseeker_id,
             "job_id": job_id
             }
             connection_details_collection.insert_one(connection_details)
-            candidate_job_application_collection.update_one({"user_id": candidate_id, "hirer_id": user_id, "job_id": job_id},{"$set": {"chat_initiated": True}})
+            candidate_job_application_collection.update_one({"user_id": jobseeker_id, "hirer_id": user_id, "job_id": job_id},{"$set": {"chat_initiated": True}})
         else:
-            abort(500, {"message": "Either job_id or candidate_id is wrong!"})
+            abort(500, {"message": "Either job_id or jobseeker_id is wrong!"})
     return redirect(f"/chat/{candidate_id}/{job_id}")
     
 @app.route("/meet/<string:channel_id>", methods=['GET'], endpoint='meeting')
