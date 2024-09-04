@@ -84,7 +84,8 @@ def is_candidate(function):
         if user is None:
             return abort(500)  
         else:
-            purpose = user.role
+            purpose = user.get('role')
+            print(user,'is it jobseeker')
             if purpose == "jobseeker":
                 return function(*args, **kwargs)
             else:
@@ -213,14 +214,16 @@ def signup():
 
 @app.route("/alljobs", methods = ['GET'], endpoint='alljobs')
 @is_candidate
-@login_is_required
+@newlogin_is_required
 def alljobs(user):
     user_name = user.get("user_id")
-    onboarded = session.get("onboarded")
+    onboarded = user.get("onboarded")
     user_id = user.get("user_id")
+    print(onboarded,'onboarded')
     if onboarded == False:
         return redirect("/onboarding")
     onboarding_details = onboarding_details_collection.find_one({"user_id": user_id},{"_id": 0})
+    print(onboarding_details)
     resume_built = onboarding_details.get("resume_built")
     if not resume_built: 
         return redirect("/billbot")
@@ -392,7 +395,7 @@ def dashboard(user):
             else:
                 all_updated_jobs.append(job)
         profile_details = profile_details_collection.find_one({"user_id": user_id},{"_id": 0})
-        return jsonify({"user_name":user_name, "onboarding_details":onboarding_details, "all_jobs":all_updated_jobs,"all_tasks":all_tasks, "profile_details":profile_details, "total_pages":total_pages, "page_number":page_number})
+        return jsonify({"user_name":user_name, "onboarding_details":onboarding_details, "all_jobs":all_jobs,"all_tasks":all_tasks, "profile_details":profile_details, "total_pages":total_pages, "page_number":page_number})
     
 @app.route("/job_support", methods = ['GET'], endpoint='job_support')
 @newlogin_is_required
@@ -1403,7 +1406,7 @@ def change_job_status(candidate_user_id):
 @newlogin_is_required
 @is_hirer
 @is_onboarded
-def job_responses(job_id):
+def job_responses(user,job_id):
     if job_details := jobs_details_collection.find_one({"job_id": job_id},{"_id": 0, "job_title" :1, "mode_of_work": 1}):
         pageno = request.args.get("pageno")
         page_number = 1  # The page number you want to retrieve
@@ -1616,7 +1619,7 @@ def task_responses(task_id):
 @newlogin_is_required
 def all_chats(user):
     user_id = user.get("user_id")
-    purpose = user.get("purpose")
+    purpose = user.get("role")
     key = "hirer_id" if purpose == "hirer" else "candidate_id"
     localField = "hirer_id" if purpose == "jobseeker" else "candidate_id"
     localAs = "hirer_details" if purpose == "jobseeker" else "candidate_details"
@@ -1659,7 +1662,7 @@ def specific_chat(user,incoming_user_id, job_id):
     user_id = user.get("user_id")
     purpose = user.get("role")
     if request.method == 'POST':
-        msg = dict(request.json).get('msg')
+        msg = request.get_json(force=True).get('msg')
         chat_details = {
             "hirer_id": user_id if purpose == "hirer" else incoming_user_id,
             "candidate_id": user_id if purpose == "jobseeker" else incoming_user_id,
@@ -1693,9 +1696,10 @@ def specific_chat(user,incoming_user_id, job_id):
 @app.route("/initiate_chat", methods =['POST'], endpoint="initiate_chat")
 @newlogin_is_required
 @is_hirer
-def initiate_chat():
-    user_id = session.get("user_id")
-    form_data = dict(request.form)
+def initiate_chat(user):
+    user_id = user.get("user_id")
+    form_data = request.get_json(force=True) 
+    print(form_data,'form_data')
     jobseeker_id = form_data.get("jobseeker_id")
     job_id = form_data.get("job_id")
     if connection_details := connection_details_collection.find_one({"jobseeker_id": jobseeker_id, "hirer_id": user_id},{"_id": 0}):
