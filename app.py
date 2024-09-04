@@ -79,7 +79,7 @@ def newlogin_is_required(function):
 
 def is_candidate(function):
     def wrapper(*args, **kwargs):
-        token=extract_bearer_token(request)
+        token = extract_bearer_token(request)
         user = get_user(token)
         if user is None:
             return abort(500)  
@@ -89,9 +89,8 @@ def is_candidate(function):
             if purpose == "jobseeker":
                 return function(*args, **kwargs)
             else:
-                abort(500, {"message":{"You are not a candidate."}})
+                abort(500, {"message": "You are not a candidate."})
     return wrapper
-
 def is_hirer(function):
     def wrapper(*args, **kwargs):
         token=extract_bearer_token(request)
