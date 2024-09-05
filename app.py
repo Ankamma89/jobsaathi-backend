@@ -378,7 +378,9 @@ def dashboard(user):
             }, 
             {
                 '$project': {
-                    '_id': 0
+                    '_id': 0,
+                     "onboarding_details._id": 0,
+                     "user_details._id":0
                 }
             },
         {"$skip": skip},  # Skip documents based on the calculated skip value
@@ -393,6 +395,7 @@ def dashboard(user):
                 pass
             else:
                 all_updated_jobs.append(job)
+        print(all_updated_jobs,'updated')
         profile_details = profile_details_collection.find_one({"user_id": user_id},{"_id": 0})
         return jsonify({"user_name":user_name, "onboarding_details":onboarding_details, "all_jobs":all_jobs,"all_tasks":all_tasks, "profile_details":profile_details, "total_pages":total_pages, "page_number":page_number})
     
@@ -1002,6 +1005,11 @@ def allusers():
     users=list(user_details_collection.find({}, {'_id': 0}))
     return jsonify({"users":users})
 
+@app.route("/all-chats", methods = ['GET'], endpoint='allchats')
+def allchats():
+    connections=list(connection_details_collection.find({},{'_id':0}))
+    chats=list(chat_details_collection.find({}, {'_id': 0}))
+    return jsonify({"chats":chats,"connections":connections})
 
 @app.route("/allonboarding", methods = ['GET'], endpoint='allonboarding')
 def allonboarding():
@@ -1617,11 +1625,13 @@ def task_responses(task_id):
 @app.route("/chats", methods=['GET'], endpoint='all_chats')
 @newlogin_is_required
 def all_chats(user):
+    print(user)
     user_id = user.get("user_id")
     purpose = user.get("role")
-    key = "hirer_id" if purpose == "hirer" else "candidate_id"
-    localField = "hirer_id" if purpose == "jobseeker" else "candidate_id"
-    localAs = "hirer_details" if purpose == "jobseeker" else "candidate_details"
+    key = "hirer_id" if purpose == "hirer" else "jobseeker_id"
+    localField = "hirer_id" if purpose == "jobseeker" else "jobseeker_id"
+    localAs = "hirer_details" if purpose == "jobseeker" else "jobseeker_details"
+    print(localAs,localField,key,user_id,'keys')
     pipeline = [
          {
                 "$match": {key: user_id}
@@ -1664,7 +1674,7 @@ def specific_chat(user,incoming_user_id, job_id):
         msg = request.get_json(force=True).get('msg')
         chat_details = {
             "hirer_id": user_id if purpose == "hirer" else incoming_user_id,
-            "candidate_id": user_id if purpose == "jobseeker" else incoming_user_id,
+            "jobseeker_id": user_id if purpose == "jobseeker" else incoming_user_id,
             "job_id": job_id,
             "sent_by": purpose,
             "sent_on": datetime.now(),
@@ -1688,7 +1698,8 @@ def specific_chat(user,incoming_user_id, job_id):
         meet_details = {
             "meetLink": f"http://127.0.0.1:5000/meet/{channel_id}"
         }
-        return jsonify({'incoming_user_id':incoming_user_id, 'purpose':purpose, 'all_chats':all_chats, 'name':name, 'channel_id':channel_id, 'job_id':job_id, 'job_details':job_details, 'meet_details':meet_details, 'text_to_html':text_to_html})
+        print(all_chats,job_details,purpose,channel_id,job_id,text_to_html,'job chat')
+        return jsonify({'incoming_user_id':incoming_user_id, 'purpose':purpose, 'all_chats':all_chats, 'name':name, 'channel_id':channel_id, 'job_id':job_id, 'job_details':job_details, 'meet_details':meet_details})
     else:
         abort(500, {"message": "User Not Found!"})
 
