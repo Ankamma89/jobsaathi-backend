@@ -1093,15 +1093,58 @@ def callback():
         user_details_collection.insert_one(user_data)
     return redirect("/")
 
-@app.route("/onboarding", methods=['GET', 'POST'],endpoint='onboarding')
+@app.route("/onboarding-hirer", methods=['GET', 'POST'],endpoint='onboarding_hirer')
 @newlogin_is_required
-def onboarding(user):
+def onboarding_hirer(user):
     user_id=user.get("user_id")
     if request.method == 'POST':
         if  user_id is None:
             abort(401)
         else:
             onboarding_details = dict(request.form)
+            if user_details := user_details_collection.find_one({"user_id": user_id},{"_id": 0}):
+             if user_details.get('role')=='hirer':
+                     purpose='hirer'
+             onboarding_details['user_id'] = user_id
+             if user_details.get("onboarded") == False:
+                    data = {"onboarded": True}
+                    onboarding_details['status'] = "active"
+                    if purpose and purpose == "hirer":
+                        profile_data = {
+                            "user_id": user_details.get("user_id"),
+                            "company_name": onboarding_details.get("company_name"),
+                            "email": user_details.get("email"),
+                            "company_representative_mobno": onboarding_details.get("company_representative_mobno"),
+                        }
+                        if 'company_logo' in request.files and str(request.files['company_logo'].filename)!="":
+                            company_logo = request.files['company_logo']
+                            company_logo_link = upload_file_firebase(company_logo, f"{user_id}/company_logo.png")
+                            profile_data['company_logo'] = company_logo_link
+                        profile_details_collection.insert_one(profile_data)
+                        onboarding_details['approved_by_admin'] = True
+                    else:
+                        abort(500, {"message": "Onboarding couldn't be completed due to some technical issue!"})
+                    onboarding_details_collection.insert_one(onboarding_details)
+                    user_details_collection.update_one({"user_id": user_id}, {"$set":data})
+                    return jsonify({"message":"successfully onboarded"}),200
+             else:
+                    abort(500, {"message": "User already Onboarded."})
+    onboarded = user.get('onboarded')
+    if onboarded == True:
+        purpose = user.get("role")
+        return redirect("/dashboard")
+    user_name = user.get("name")
+    return jsonify({'user_name':user_name})
+
+@app.route("/onboarding-jobseeker", methods=['GET', 'POST'],endpoint='onboarding_jobseeker')
+@newlogin_is_required
+def onboarding_jobseeker(user):
+    user_id=user.get("user_id")
+    if request.method == 'POST':
+        if  user_id is None:
+            abort(401)
+        else:
+            onboarding_details = request.get_json(force=True)
             if user_details := user_details_collection.find_one({"user_id": user_id},{"_id": 0}):
              if user_details.get('role')=='jobseeker':
                      purpose='jobseeker'
@@ -1149,118 +1192,6 @@ def onboarding(user):
     user_name = user.get("name")
     return jsonify({'user_name':user_name})
     
-@app.route("/onboarding-recruiter", methods=['GET', 'POST'],endpoint="onboardingRecruiter")
-@newlogin_is_required
-def onboardingRecruiter(user):
-    user_id=user.get('user_id')
-    if request.method == 'POST':
-        if  user_id is None:
-            abort(401)
-        else:
-            onboarding_details = dict(request.form)
-            onboarding_details['user_id'] = user_id
-            if user_details := user_details_collection.find_one({"user_id": user_id},{"_id": 0}):
-                if user_details.get("onboarded") == False:
-                    purpose = onboarding_details.get("purpose")
-                    session['purpose'] = purpose
-                    data = {"onboarded": True}
-                    onboarding_details['status'] = "active"
-                    if purpose and purpose == "jobseeker":
-                        onboarding_details['phase'] = "1"
-                        onboarding_details['build_status'] = "introduction"
-                        onboarding_details['resume_built'] = False
-                        session['resume_built'] = False
-                        profile_data = {
-                            "user_id": user_details.get("user_id"),
-                            "name": onboarding_details.get("candidate_name"),
-                            "email": user_details.get("email"),
-                            "mobno": onboarding_details.get("candidate_mobno"),
-                        }
-                        profile_details_collection.insert_one(profile_data)
-                    elif purpose and purpose == "hirer":
-                        profile_data = {
-                            "user_id": user_details.get("user_id"),
-                            "company_name": onboarding_details.get("company_name"),
-                            "email": user_details.get("email"),
-                            "company_representative_mobno": onboarding_details.get("company_representative_mobno"),
-                        }
-                        if 'company_logo' in request.files and str(request.files['company_logo'].filename)!="":
-                            company_logo = request.files['company_logo']
-                            company_logo_link = upload_file_firebase(company_logo, f"{user_id}/company_logo.png")
-                            profile_data['company_logo'] = company_logo_link
-                        profile_details_collection.insert_one(profile_data)
-                        onboarding_details['approved_by_admin'] = True
-                    else:
-                        abort(500, {"message": "Onboarding couldn't be completed due to some technical issue!"})
-                    onboarding_details_collection.insert_one(onboarding_details)
-                    user_details_collection.update_one({"user_id": user_id}, {"$set":data})
-                    session['onboarded'] = True
-                    return redirect("/dashboard") 
-                else:
-                    abort(500, {"message": "User already Onboarded."})
-    onboarded = session.get('onboarded')
-    if onboarded == True:
-        purpose = session.get("purpose")
-        return redirect("/dashboard")
-    user_name = session.get("name")
-    return render_template('onboardingHirer.html', user_name=user_name)
-    
-@app.route("/onboarding-jobseeker", methods=['GET', 'POST'],endpoint='onboardingJobSeeker')
-@newlogin_is_required
-def onboardingJobseeker(user_id):
-    if request.method == 'POST':
-        if  user_id is None:
-            abort(401)
-        else:
-            onboarding_details = dict(request.form)
-            onboarding_details['user_id'] = user_id
-            if user_details := user_details_collection.find_one({"user_id": user_id},{"_id": 0}):
-                if user_details.get("onboarded") == False:
-                    purpose = onboarding_details.get("purpose")
-                    session['purpose'] = purpose
-                    data = {"onboarded": True}
-                    onboarding_details['status'] = "active"
-                    if purpose and purpose == "jobseeker":
-                        onboarding_details['phase'] = "1"
-                        onboarding_details['build_status'] = "introduction"
-                        onboarding_details['resume_built'] = False
-                        session['resume_built'] = False
-                        profile_data = {
-                            "user_id": user_details.get("user_id"),
-                            "name": onboarding_details.get("candidate_name"),
-                            "email": user_details.get("email"),
-                            "mobno": onboarding_details.get("candidate_mobno"),
-                        }
-                        profile_details_collection.insert_one(profile_data)
-                    elif purpose and purpose == "hirer":
-                        profile_data = {
-                            "user_id": user_details.get("user_id"),
-                            "company_name": onboarding_details.get("company_name"),
-                            "email": user_details.get("email"),
-                            "company_representative_mobno": onboarding_details.get("company_representative_mobno"),
-                        }
-                        if 'company_logo' in request.files and str(request.files['company_logo'].filename)!="":
-                            company_logo = request.files['company_logo']
-                            company_logo_link = upload_file_firebase(company_logo, f"{user_id}/company_logo.png")
-                            profile_data['company_logo'] = company_logo_link
-                        profile_details_collection.insert_one(profile_data)
-                        onboarding_details['approved_by_admin'] = True
-                    else:
-                        abort(500, {"message": "Onboarding couldn't be completed due to some technical issue!"})
-                    onboarding_details_collection.insert_one(onboarding_details)
-                    user_details_collection.update_one({"user_id": user_id}, {"$set":data})
-                    session['onboarded'] = True
-                    return redirect("/dashboard") 
-                else:
-                    abort(500, {"message": "User already Onboarded."})
-    onboarded = session.get('onboarded')
-    if onboarded == True:
-        purpose = session.get("purpose")
-        return redirect("/dashboard")
-    user_name = session.get("name")
-    return render_template('onboardingCandidate.html', user_name=user_name)
-    
-
 @app.route('/create_job',methods=['POST'], endpoint="create_job")
 @is_hirer
 @newlogin_is_required
