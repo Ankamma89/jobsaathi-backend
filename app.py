@@ -1210,7 +1210,7 @@ def create_job(user):
     job_details['job_id'] = job_id
     job_details['created_on'] = datetime.now()
     jobs_details_collection.insert_one(job_details)
-    return redirect("/dashboard")
+    return jsonify({'status': 'success', 'message': 'Job created successfully'})
 
 @app.route('/edit/job/<string:job_id>', methods=['GET', 'POST'], endpoint="edit_job")
 @newlogin_is_required
@@ -1754,3 +1754,28 @@ def meeting(user,channel_id):
         return jsonify({'meet_details':meet_details, 'job_details':job_details, 'onboarding_details':onboarding_details})
     else:
         abort(500, {"message": "Invalid Channel ID"})
+
+@app.route('/hirer/view/job/<string:job_id>', methods=['GET'], endpoint="view_job")
+@newlogin_is_required
+@is_hirer
+def view_job(user,job_id):
+    user_id = user.get("user_id")
+    if job_details_cursor := jobs_details_collection.find_one({"user_id": str(user_id), "job_id": str(job_id)},{"_id": 0}):
+        job_details = job_details_cursor
+        return jsonify({'job_details':job_details})
+    else:
+        abort(404, {"message": "Job not found"})
+
+@app.route('/hirer/view/jobs', methods=['GET'], endpoint="view_jobs")
+@newlogin_is_required
+@is_hirer
+def view_jobs(user):
+    user_id = user.get("user_id")
+    jobs_details_cursor = jobs_details_collection.find({"user_id": str(user_id)}, {"_id": 0})
+    
+    jobs_details = list(jobs_details_cursor)
+    
+    if jobs_details:
+        return jsonify({'jobs_details': jobs_details})
+    else:
+        abort(404, {"message": "Jobs not found"})
