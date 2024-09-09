@@ -1754,4 +1754,3 @@ def meeting(user,channel_id):
         return jsonify({'meet_details':meet_details, 'job_details':job_details, 'onboarding_details':onboarding_details})
     else:
         abort(500, {"message": "Invalid Channel ID"})
-
