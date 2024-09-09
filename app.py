@@ -1191,6 +1191,13 @@ def onboarding_jobseeker(user):
         return redirect("/dashboard")
     user_name = user.get("name")
     return jsonify({'user_name':user_name})
+
+@app.route("/onboarding_details", methods=['GET', 'POST'],endpoint='onboarding_details')
+@newlogin_is_required
+def onboarding_details(user):
+    user_id=user.get('user_id')
+    onboarding=onboarding_details_collection.find_one({"user_id": user_id},{"_id": 0})
+    return jsonify({'onboarding':onboarding})
     
 @app.route('/create_job',methods=['POST'], endpoint="create_job")
 @is_hirer
@@ -1634,15 +1641,11 @@ def specific_chat(user,incoming_user_id, job_id):
     else:
         abort(500, {"message": "User Not Found!"})
 
-@app.route("/initiate_chat", methods =['POST'], endpoint="initiate_chat")
+@app.route("/initiate_chat/<string:jobseeker_id>/<string:job_id>", methods =['GET'], endpoint="initiate_chat")
 @newlogin_is_required
 @is_hirer
-def initiate_chat(user):
+def initiate_chat(user,jobseeker_id, job_id):
     user_id = user.get("user_id")
-    form_data = request.get_json(force=True) 
-    print(form_data,'form_data')
-    jobseeker_id = form_data.get("jobseeker_id")
-    job_id = form_data.get("job_id")
     if connection_details := connection_details_collection.find_one({"jobseeker_id": jobseeker_id, "hirer_id": user_id},{"_id": 0}):
         pass
     else:
@@ -1657,7 +1660,7 @@ def initiate_chat(user):
             candidate_job_application_collection.update_one({"user_id": jobseeker_id, "hirer_id": user_id, "job_id": job_id},{"$set": {"chat_initiated": True}})
         else:
             abort(500, {"message": "Either job_id or jobseeker_id is wrong!"})
-    return redirect(f"/chat/{user_id}/{job_id}")
+    return jsonify({"message":"initiated"}),200
 
 ###### FAIZAN #####
 
