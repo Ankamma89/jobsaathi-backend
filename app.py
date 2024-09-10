@@ -17,6 +17,8 @@ import uuid
 import time
 import pusher
 from flask_cors import CORS
+from collections import Counter
+import re
 
 pusher_client = pusher.Pusher(
   app_id=os.environ['PUSHER_APP_ID'],
@@ -1794,52 +1796,41 @@ def view__jobs(user):
     else:
         abort(404, {"message": "Jobs not found"})
 
-@app.route("/filterJobs",methods = ['GET'])   
+@app.route("/filterJobs", methods=['GET'])
 def filter_jobs():
     searched_for = request.args.get("search")
-    print(request.args,'args')
-    job_title=request.args.get("job_title")
-    experience_level=request.args.get("experience_level")
-    job_topics=request.args.get("job_topics")
-    salary_range=request.args.get("salary_range")
-    mode_of_work=request.args.get("mode_of_work")
-    job_location=request.args.get("job_location")
-    job_type=request.args.get("job_type")
-    query={}
+    job_title = request.args.get("job_title")
+    experience_level = request.args.get("experience_level")
+    job_topics = request.args.get("job_topics")
+    salary_range = request.args.get("salary_range")
+    mode_of_work = request.args.get("mode_of_work")
+    job_location = request.args.get("job_location")
+    job_type = request.args.get("job_type")
+
+    query = {}
     if job_title:
-        query.update({'job_title':job_title})
+        query['job_title'] = {"$regex": job_title, "$options": "i"}
     if experience_level:
-        query.update({'experience_level':experience_level})
-    if job_topics:
-        query.update({'job_topics':job_topics})
+        query['experience_level'] = experience_level
     if salary_range:
-        query.update({'salary_range':salary_range})
+        query['salary_range'] = salary_range
     if job_type:
-        query.update({'job_type':job_type})
+        query['job_type'] = job_type
     if mode_of_work:
-        query.update({'mode_of_work':mode_of_work})
+        query['mode_of_work'] = mode_of_work
     if job_location:
-        query.update({'job_location':job_location})
-    print(query,'query')
-    # pipeline = [
-    #     {
-    #         '$lookup': {
-    #             'from': 'jobs_details', 
-    #             'localField': 'job_id', 
-    #             'foreignField': 'job_id', 
-    #             'as': 'job_details'
-    #         }
-    #     }, 
-    #     {
-    #         '$project': {
-    #             '_id': 0,
-    #             'job_details._id': 0
-    #         }
-    #     }
-    # ]
+        query['job_location'] = job_location
+
+    if job_topics:
+        # Remove '#' if present and create a regex pattern
+        topics = [topic.strip('#') for topic in job_topics.split()]
+        topics_regex = '|'.join(topics)
+        query['job_topics'] = {"$regex": topics_regex, "$options": "i"}
+
+    pipeline = []
+
     if searched_for:
-     pipeline = [
-        {
+        pipeline.append({
             "$match": {
                 "$or": [
                     {"job_title": {"$regex": searched_for, "$options": "i"}},
@@ -1848,65 +1839,89 @@ def filter_jobs():
                     {"job_topics": {"$regex": searched_for, "$options": "i"}}
                 ]
             }
-        },
-         {
-            '$lookup': {
-                'from': 'jobs_details', 
-                'localField': 'job_id', 
-                'foreignField': 'job_id', 
-                'as': 'job_details'
-            }
-        }, 
-        {
-            '$project': {
-                '_id': 0,
-                'job_details._id': 0
-            }
-        }
-     ]
+        })
     elif query:
-        pipeline = [
+        pipeline.append({"$match": query})
+
+    # Add the lookup and project stages
+    pipeline.extend([
         {
-            "$match": {
-                "$and": [
-                   query
-                ]
-            }
-        },
-         {
             '$lookup': {
-                'from': 'jobs_details', 
-                'localField': 'job_id', 
-                'foreignField': 'job_id', 
+                'from': 'jobs_details',
+                'localField': 'job_id',
+                'foreignField': 'job_id',
                 'as': 'job_details'
             }
-        }, 
+        },
         {
             '$project': {
                 '_id': 0,
                 'job_details._id': 0
             }
         }
-     ]
-    else:
-       pipeline = [
-        {
-            "$match": {}
-        },
-         {
-            '$lookup': {
-                'from': 'jobs_details', 
-                'localField': 'job_id', 
-                'foreignField': 'job_id', 
-                'as': 'job_details'
-            }
-        }, 
-        {
-            '$project': {
-                '_id': 0,
-                'job_details._id': 0
-            }
-        }
-     ]
+    ])
+
     all_jobs = list(jobs_details_collection.aggregate(pipeline))
-    return jsonify({'all_jobs':all_jobs})
+    return jsonify({'all_jobs': all_jobs})
+
+@app.route("/jobs/tags", methods=['GET'])
+def get_most_used_tags():
+    limit = int(request.args.get("limit", 10))  # Default to top 10 if not specified
+
+    pipeline = [
+        {
+            "$project": {
+                "topics": {
+                    "$split": [
+                        "$job_topics",
+                        " "
+                    ]
+                }
+            }
+        },
+        {
+            "$unwind": "$topics"
+        },
+        {
+            "$group": {
+                "_id": "$topics",
+                "count": {"$sum": 1}
+            }
+        },
+        {
+            "$sort": {"count": -1}
+        },
+        {
+            "$limit": limit
+        }
+    ]
+
+    result = list(jobs_details_collection.aggregate(pipeline))
+
+    # Clean up tags (remove '#' if present) and format the result
+    top_tags = [
+        {
+            "tag": re.sub(r'^#', '', item["_id"]),
+            "count": item["count"]
+        }
+        for item in result if item["_id"].strip() 
+    ]
+
+    return jsonify({"top_tags": top_tags})
+
+# pipeline = [
+#     {
+#         '$lookup': {
+#             'from': 'jobs_details', 
+#             'localField': 'job_id', 
+#             'foreignField': 'job_id', 
+#             'as': 'job_details'
+#         }
+#     }, 
+#     {
+#         '$project': {
+#             '_id': 0,
+#             'job_details._id': 0
+#         }
+#     }
+# ]
