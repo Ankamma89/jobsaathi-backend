@@ -1779,3 +1779,134 @@ def view_jobs(user):
         return jsonify({'jobs_details': jobs_details})
     else:
         abort(404, {"message": "Jobs not found"})
+
+@app.route('/hirer/view/jobs', methods=['GET'], endpoint="view__jobs")
+@newlogin_is_required
+@is_candidate
+def view__jobs(user):
+    user_id = user.get("user_id")
+    jobs_details_cursor = jobs_details_collection.find({"user_id": str(user_id)}, {"_id": 0})
+    
+    jobs_details = list(jobs_details_cursor)
+    
+    if jobs_details:
+        return jsonify({'jobs_details': jobs_details})
+    else:
+        abort(404, {"message": "Jobs not found"})
+
+@app.route("/filterJobs",methods = ['GET'])   
+def filter_jobs():
+    searched_for = request.args.get("search")
+    print(request.args,'args')
+    job_title=request.args.get("job_title")
+    experience_level=request.args.get("experience_level")
+    job_topics=request.args.get("job_topics")
+    salary_range=request.args.get("salary_range")
+    mode_of_work=request.args.get("mode_of_work")
+    job_location=request.args.get("job_location")
+    job_type=request.args.get("job_type")
+    query={}
+    if job_title:
+        query.update({'job_title':job_title})
+    if experience_level:
+        query.update({'experience_level':experience_level})
+    if job_topics:
+        query.update({'job_topics':job_topics})
+    if salary_range:
+        query.update({'salary_range':salary_range})
+    if job_type:
+        query.update({'job_type':job_type})
+    if mode_of_work:
+        query.update({'mode_of_work':mode_of_work})
+    if job_location:
+        query.update({'job_location':job_location})
+    print(query,'query')
+    # pipeline = [
+    #     {
+    #         '$lookup': {
+    #             'from': 'jobs_details', 
+    #             'localField': 'job_id', 
+    #             'foreignField': 'job_id', 
+    #             'as': 'job_details'
+    #         }
+    #     }, 
+    #     {
+    #         '$project': {
+    #             '_id': 0,
+    #             'job_details._id': 0
+    #         }
+    #     }
+    # ]
+    if searched_for:
+     pipeline = [
+        {
+            "$match": {
+                "$or": [
+                    {"job_title": {"$regex": searched_for, "$options": "i"}},
+                    {"job_description": {"$regex": searched_for, "$options": "i"}},
+                    {"job_type": {"$regex": searched_for, "$options": "i"}},
+                    {"job_topics": {"$regex": searched_for, "$options": "i"}}
+                ]
+            }
+        },
+         {
+            '$lookup': {
+                'from': 'jobs_details', 
+                'localField': 'job_id', 
+                'foreignField': 'job_id', 
+                'as': 'job_details'
+            }
+        }, 
+        {
+            '$project': {
+                '_id': 0,
+                'job_details._id': 0
+            }
+        }
+     ]
+    elif query:
+        pipeline = [
+        {
+            "$match": {
+                "$and": [
+                   query
+                ]
+            }
+        },
+         {
+            '$lookup': {
+                'from': 'jobs_details', 
+                'localField': 'job_id', 
+                'foreignField': 'job_id', 
+                'as': 'job_details'
+            }
+        }, 
+        {
+            '$project': {
+                '_id': 0,
+                'job_details._id': 0
+            }
+        }
+     ]
+    else:
+       pipeline = [
+        {
+            "$match": {}
+        },
+         {
+            '$lookup': {
+                'from': 'jobs_details', 
+                'localField': 'job_id', 
+                'foreignField': 'job_id', 
+                'as': 'job_details'
+            }
+        }, 
+        {
+            '$project': {
+                '_id': 0,
+                'job_details._id': 0
+            }
+        }
+     ]
+    all_jobs = list(jobs_details_collection.aggregate(pipeline))
+    return jsonify({'all_jobs':all_jobs})
