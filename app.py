@@ -1,6 +1,6 @@
 from flask import Flask, request, render_template, redirect, abort, session, flash, make_response
 from client_secret import client_secret, initial_html
-from db import tasks_details_collection,user_details_collection, onboarding_details_collection, jobs_details_collection, candidate_job_application_collection,candidate_task_proposal_collection, chatbot_collection, resume_details_collection, profile_details_collection, saved_jobs_collection, chat_details_collection, connection_details_collection
+from db import task_seen_by_collection, tasks_details_collection,user_details_collection, onboarding_details_collection, jobs_details_collection, candidate_job_application_collection,candidate_task_proposal_collection, chatbot_collection, resume_details_collection, profile_details_collection, saved_jobs_collection, chat_details_collection, connection_details_collection
 from helpers import  query_update_billbot, add_html_to_db, analyze_resume, upload_file_firebase, extract_text_pdf, outbound_messages, next_build_status, updated_build_status, text_to_html, calculate_total_pages, mbsambsasmbsa
 from jitsi import create_jwt
 import os
@@ -1439,6 +1439,34 @@ def alltasks(user):
     all_tasks = list(tasks_details_collection.aggregate(pipeline))
     # return all_applied_jobs
     return jsonify({"user_name":user_name, "onboarding_details":onboarding_details, "all_tasks":all_tasks, "total_pages":total_pages,"page_number":page_number})
+
+# View a Task details Faizan
+@app.route('/view/task/<string:task_id>', methods=['GET'], endpoint="view_task")
+@newlogin_is_required
+@is_candidate
+def view_task(user, task_id):
+    viewer_name = user.get("name")
+    viewer_id = user.get("user_id")
+    onboarded = user.get("onboarded")
+    if not onboarded:
+        return jsonify({"message": "User not onboarded"}), 403
+    task_details = tasks_details_collection.find_one({"task_id": task_id}, {"_id": 0})
+    if not task_details:
+        return jsonify({"message": "Task not found"}), 404
+    #Get Poster Details bu searching user_id to mongdb _id
+    poster_id = task_details.get("user_id")
+    poster_name = user_details_collection.find_one({"user_id": poster_id}, {"_id": 0})
+    if not poster_name:
+        return jsonify({"message": "Poster not found"}), 404
+    task_details["poster_user_name"] = poster_name.get("user_name")
+    
+    task_seen_by_collection.update_one(
+        {"task_id": task_id},
+        {"$addToSet": {"seen_by": {"viewer_id": viewer_id, "viewer_name": viewer_name}}},
+        upsert=True
+    )
+    return jsonify({"task_details": task_details}), 200
+
 
 @app.route('/apply/task/<string:task_id>', methods=['GET', 'POST'], endpoint="apply_task")
 @newlogin_is_required

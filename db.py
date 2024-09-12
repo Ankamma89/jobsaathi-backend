@@ -28,4 +28,4 @@ chatbot_collection = db_client['chatbot']
 profile_details_collection = db_client['profile_details']
 chat_details_collection = db_client['chat_details']
 connection_details_collection = db_client['connection_details']
-
+task_seen_by_collection = db_client['task_seen_by']
