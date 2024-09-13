@@ -1737,13 +1737,10 @@ def verify_token_route():
     else:
         return jsonify({"valid": False, "message": "Invalid token"}), 401 
 
-
-########
-
 @app.route("/meet/<string:channel_id>", methods=['GET'], endpoint='meeting')
-@newlogin_is_required
-def meeting(user,channel_id):
-    purpose = user.get("role")
+@login_is_required
+def meeting(channel_id):
+    purpose = request.args.get("purpose")
     candidate_id, hirer_id, job_id = channel_id.split("_")
     hirer_pipeline = [
            {
@@ -1791,9 +1788,10 @@ def meeting(user,channel_id):
             "jwt": jwt,
             "meetLink": f"http:127.0.0.1:5000/meet/{channel_id}"
         }
-        return jsonify({'meet_details':meet_details, 'job_details':job_details, 'onboarding_details':onboarding_details})
+        return render_template('videoservice/main.html', meet_details=meet_details, job_details=job_details, onboarding_details=onboarding_details)
     else:
         abort(500, {"message": "Invalid Channel ID"})
+
 
 @app.route('/hirer/view/job/<string:job_id>', methods=['GET'], endpoint="view_job")
 @newlogin_is_required
@@ -1905,7 +1903,6 @@ def filter_jobs():
 @app.route("/jobs/tags", methods=['GET'])
 def get_most_used_tags():
     limit = int(request.args.get("limit", 10))  # Default to top 10 if not specified
-
     pipeline = [
         {
             "$project": {
@@ -1946,6 +1943,52 @@ def get_most_used_tags():
     ]
 
     return jsonify({"top_tags": top_tags})
+
+@app.route("/tasks/tags", methods=['GET'])
+def get_most_used_job_tags(): 
+    limit = int(request.args.get("limit", 10))  # Default to top 10 if not specified
+
+    pipeline = [
+        {
+            "$project": {
+                "topics": {
+                    "$split": [
+                        "$task_topics",
+                        " "
+                    ]
+                }
+            }
+        },
+        {
+            "$unwind": "$topics"
+        },
+        {
+            "$group": {
+                "_id": "$topics",
+                "count": {"$sum": 1}
+            }
+        },
+        {
+            "$sort": {"count": -1}
+        },
+        {
+            "$limit": limit
+        }
+    ]
+
+    result = list(tasks_details_collection.aggregate(pipeline))
+
+    # Clean up tags (remove '#' if present) and format the result
+    top_tags = [
+        {
+            "tag": re.sub(r'^#', '', item["_id"]),
+            "count": item["count"]
+        }
+        for item in result if item["_id"].strip() 
+    ]
+
+    return jsonify({"top_tags": top_tags})
+
 
 # pipeline = [
 #     {
