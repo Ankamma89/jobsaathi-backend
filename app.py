@@ -694,9 +694,18 @@ def public_candidate_profile(user_id):
                 }
             }, 
             {
+                '$lookup': {
+                    'from': 'user_details', 
+                    'localField': 'user_id', 
+                    'foreignField': 'user_id', 
+                    'as': 'user_details'
+                }
+            },
+            {
                 '$project': {
                     '_id': 0,
-                    'resume_details._id': 0
+                    'resume_details._id': 0,
+                    'user_details._id': 0
                 }
             }
         ]
@@ -710,12 +719,13 @@ def public_candidate_profile(user_id):
 @newlogin_is_required
 @is_candidate
 def upload_intro_candidate(user):
+    print(user,'uploaduing')
     user_id = user.get("user_id")
     if 'intro_video' in request.files and str(request.files['intro_video'].filename)!="":
         intro_video = request.files['intro_video']
         intro_video_link = upload_file_firebase(intro_video, f"{user_id}/intro_video.mp4")
         profile_details_collection.update_one({"user_id": user_id},{"$set": {"intro_video_link": intro_video_link}})
-        return redirect('/profile')
+        return jsonify({'message':'video is saved'}),200
 
 
 @app.route('/login-hirer', methods=['GET', 'POST'], endpoint="login_hirer")
