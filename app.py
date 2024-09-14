@@ -1,4 +1,5 @@
-from flask import Flask, request, render_template, redirect, abort, session, flash, make_response
+from json import dumps
+from flask import Flask, json, request, render_template, redirect, abort, session, flash, make_response
 from client_secret import client_secret, initial_html
 from db import task_seen_by_collection, tasks_details_collection,user_details_collection, onboarding_details_collection, jobs_details_collection, candidate_job_application_collection,candidate_task_proposal_collection, chatbot_collection, resume_details_collection, profile_details_collection, saved_jobs_collection, chat_details_collection, connection_details_collection
 from helpers import  query_update_billbot, add_html_to_db, analyze_resume, upload_file_firebase, extract_text_pdf, outbound_messages, next_build_status, updated_build_status, text_to_html, calculate_total_pages, mbsambsasmbsa
@@ -7,6 +8,9 @@ import os
 from flask import jsonify
 import jwt
 from datetime import datetime
+from bson import ObjectId
+import json
+from flask.json import JSONEncoder
 import requests
 import pathlib
 from google.oauth2 import id_token
@@ -28,12 +32,24 @@ pusher_client = pusher.Pusher(
   ssl=True
 )
 
+class CustomJSONEncoder(JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, ObjectId):
+            return str(obj)
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super().default(obj)
+
+
+
 app = Flask(__name__)
 # Enable CORS for the entire app
 CORS(app)
 app.secret_key = os.environ['APP_SECRET']
 
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
+app.json_encoder = CustomJSONEncoder
+
 
 url_ = os.environ['APP_URL']
 APP_SECRET = os.environ['APP_SECRET']
@@ -393,13 +409,22 @@ def dashboard(user):
         all_tasks = list(tasks_details_collection.aggregate(pipeline))
         all_updated_jobs = []
         for idx, job in enumerate(all_jobs):
-            if applied := candidate_job_application_collection.find_one({"job_id": job.get("job_id"),"user_id":  user_id},{"_id": 0}):
+            if applied := candidate_job_application_collection.find_one({"job_id": job.get("job_id"),"user_id": user_id},{"_id": 0}):
                 pass
             else:
                 all_updated_jobs.append(job)
-        print(all_updated_jobs,'updated')
+
         profile_details = profile_details_collection.find_one({"user_id": user_id},{"_id": 0})
-        return jsonify({"user_name":user_name, "onboarding_details":onboarding_details, "all_jobs":all_jobs,"all_tasks":all_tasks, "profile_details":profile_details, "total_pages":total_pages, "page_number":page_number})
+
+        return jsonify({
+            "user_name": user_name,
+            "onboarding_details": onboarding_details,
+            "all_jobs": all_updated_jobs,
+            "all_tasks": all_tasks,
+            "profile_details": profile_details,
+            "total_pages": total_pages,
+            "page_number": page_number
+        })
     
 @app.route("/job_support", methods = ['GET'], endpoint='job_support')
 @newlogin_is_required
@@ -442,7 +467,15 @@ def job_support(user):
                 "total_published_jobs" : len(all_published_jobs),
                 "total_selected_candidates" : len(total_selected_candidates)
             }
-            return jsonify({"user_name":user_name, "onboarding_details":onboarding_details, "all_jobs":all_jobs,"all_tasks":all_tasks, "stats":stats, "total_pages":total_pages, "page_number":page_number})
+            return jsonify({
+            "user_name": user_name,
+            "onboarding_details": onboarding_details,
+            "all_jobs": all_jobs,
+            "all_tasks": all_tasks,
+            "stats": stats,
+            "total_pages": total_pages,
+            "page_number": page_number
+        })
         else:
             return jsonify({"message":"approval by admin is pending"}),200
     else:
@@ -1478,7 +1511,9 @@ def view_task(user, task_id):
 @newlogin_is_required
 def apply_task(user,task_id):
     user_id = user.get("user_id")
-    pipeline = [
+    
+    # Fetch existing proposals for the task
+    proposals_pipeline = [
         {
             '$lookup': {
                 'from': 'candidate_task_proposal', 
@@ -1492,15 +1527,17 @@ def apply_task(user,task_id):
                 '_id': 0,
                 'task_details._id': 0
             }
-        } # Limit the number of documents per page
+        }
     ]
-    proposals = list(candidate_task_proposal_collection.aggregate(pipeline))
+    proposals = list(candidate_task_proposal_collection.aggregate(proposals_pipeline))
+    
     if request.method == 'POST':
         if task_details := tasks_details_collection.find_one({"task_id": task_id},{"_id": 0}):
             form_data = request.get_json(force=True)
             quote = form_data.get("quote")
             deposit = form_data.get("deposit")
             message = form_data.get("message")
+            
             task_apply_data = {
                 "task_id": task_id,
                 "hirer_id": task_details.get("user_id"),
@@ -1515,26 +1552,33 @@ def apply_task(user,task_id):
             flash("Successfully Applied for the Job. Recruiters will get back to you soon, if you are a good fit.")
             return jsonify({"message":"successfully applied for the task"})
         else:
-            abort(500,{"messages": f"Job with Job Id {task_id} doesn't exist! "})
-    tasks_details_collection.update_one({"task_id": task_id},{"$inc": {"views": 1}})
-    pipeline = [
-              {"$match": {"task_id": str(task_id)}},
-                {
-                    '$lookup': {
-                        'from': 'onboarding_details', 
-                        'localField': 'user_id', 
-                        'foreignField': 'user_id', 
-                        'as': 'user_details'
-                    }
-                }, 
-                {
-                    '$project': {
-                        '_id': 0,
-                        'user_details._id': 0
-                    }
-                }
-            ]
-    if job_details := list(tasks_details_collection.aggregate(pipeline)):
+            return jsonify({"message": f"Job with Job ID {task_id} doesn't exist!"}), 404
+    
+    # Increment views for the task
+    tasks_details_collection.update_one({"task_id": task_id}, {"$inc": {"views": 1}})
+    
+    # Fetch task details
+    task_pipeline = [
+        {"$match": {"task_id": str(task_id)}},
+        {
+            '$lookup': {
+                'from': 'onboarding_details', 
+                'localField': 'user_id', 
+                'foreignField': 'user_id', 
+                'as': 'user_details'
+            }
+        }, 
+        {
+            '$project': {
+                '_id': 0,
+                'user_details._id': 0
+            }
+        }
+    ]
+    
+    job_details = list(tasks_details_collection.aggregate(task_pipeline))
+    
+    if job_details:
         task_details = job_details[0]
         if task_details.get("status") == "published":
             if candidate_task_proposal_collection.find_one({"user_id": user_id, "task_id": task_id},{"_id": 0}):
