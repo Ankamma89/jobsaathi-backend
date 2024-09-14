@@ -1591,6 +1591,20 @@ def apply_task(user,task_id):
     else:
         abort(500, {"message": f"JOB with job_id {task_id} not found!"})
 
+#functions to get tasks of hirers, and job seekrs
+def get_tasks(user):
+    user_id = user.get("user_id")
+    tasks = list(tasks_details_collection.find({"user_id": str(user_id)}))
+    return tasks
+
+#API TO GET TASKS
+@app.route('/tasks/get', methods=['GET'], endpoint="get_tasks")
+@newlogin_is_required
+def get_tasks(user):
+    user_id = user.get("user_id")
+    tasks = list(tasks_details_collection.find({"user_id": str(user_id)}))
+    return jsonify({"tasks":tasks})
+
 
 @app.route('/proposals/task/<string:task_id>', methods=['GET', 'POST'], endpoint="task_responses")
 @newlogin_is_required
