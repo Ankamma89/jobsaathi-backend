@@ -133,7 +133,7 @@ def is_onboarded(function):
         if onboarded:
             return function(*args, **kwargs)
         else:
-            return redirect("/dashboard")
+             return jsonify({"message":"onboarded"}),200
     return wrapper
 
 
@@ -291,9 +291,9 @@ def dashboard(user):
     user_id = user.get("user_id")
     if onboarded == False:
         if user.get("role")=='jobseeker':
-         return redirect("/onboarding-jobseeker")
+         return jsonify({"message":"please onboard"}),200
         if user.get("role")=='hirer':
-         return redirect("/onboarding-recruiter")
+         return jsonify({"message":"please onboard"}),200
     onboarding_details = onboarding_details_collection.find_one({"user_id": user_id},{"_id": 0})
     purpose = onboarding_details.get("purpose")
     resume_built = onboarding_details.get("resume_built")
@@ -332,7 +332,7 @@ def dashboard(user):
             return jsonify({"message":"admin approval needed"}),200
     else:
         if not resume_built: 
-            return redirect("/billbot")
+             return jsonify({"message":"please build your resume"}),200
         resume_skills_string = resume_details_collection.find_one({'user_id': user_id}, {'skills': 1}).get("skills")
         resume_skills = [skill.strip().lower() for skill in resume_skills_string.split(',')]
         regex_patterns = []
@@ -433,7 +433,7 @@ def job_support(user):
     onboarded = user.get("onboarded")
     user_id = user.get("user_id")
     if onboarded == False:
-        return redirect("/onboarding")
+         return jsonify({"message":"please onboard"}),200
     onboarding_details = onboarding_details_collection.find_one({"user_id": user_id},{"_id": 0})
     purpose = onboarding_details.get("purpose")
     resume_built = onboarding_details.get("resume_built")
@@ -458,19 +458,17 @@ def job_support(user):
                     {"$skip": skip},  # Skip documents based on the calculated skip value
                     {"$limit": page_size}  # Limit the number of documents per page
                 ]
-            all_jobs = list(jobs_details_collection.aggregate(pipeline))
             all_tasks = list(tasks_details_collection.aggregate(pipeline))
-            all_published_jobs = list(jobs_details_collection.find({"user_id": user_id, "status":"published"},{"_id": 0}))
+            all_published_tasks = list(jobs_details_collection.find({"user_id": user_id, "status":"published"},{"_id": 0}))
             total_selected_candidates = list(candidate_job_application_collection.find({"hirer_id": user_id, "status":"Accepted"},{"_id": 0}))
             stats = {
-                "total_jobs" : len(all_jobs),
-                "total_published_jobs" : len(all_published_jobs),
+                "total_tasks" : len(all_tasks),
+                "total_published_tasks" : len(all_published_tasks),
                 "total_selected_candidates" : len(total_selected_candidates)
             }
             return jsonify({
             "user_name": user_name,
             "onboarding_details": onboarding_details,
-            "all_jobs": all_jobs,
             "all_tasks": all_tasks,
             "stats": stats,
             "total_pages": total_pages,
@@ -480,7 +478,7 @@ def job_support(user):
             return jsonify({"message":"approval by admin is pending"}),200
     else:
         if not resume_built: 
-            return redirect("/billbot")
+             return jsonify({"message":"please build resume"}),200
         resume_skills_string = resume_details_collection.find_one({'user_id': user_id}, {'skills': 1}).get("skills")
         resume_skills = [skill.strip().lower() for skill in resume_skills_string.split(',')]
         regex_patterns = []
@@ -494,9 +492,9 @@ def job_support(user):
         '$match': {
             'status': 'published',
                '$or': [
-                {'job_title': {'$regex': regex_pattern, '$options': 'i'}},
-                {'job_description': {'$regex': regex_pattern, '$options': 'i'}},
-                {'job_topics': {'$regex': regex_pattern, '$options': 'i'}},
+                {'task_title': {'$regex': regex_pattern, '$options': 'i'}},
+                {'task_description': {'$regex': regex_pattern, '$options': 'i'}},
+                {'task_topics': {'$regex': regex_pattern, '$options': 'i'}},
             ]
         }
     }, 
@@ -512,7 +510,7 @@ def job_support(user):
         if pageno is not None:
             page_number = int(pageno)
         page_size = 7   # Number of documents per page
-        total_elements = len(list(jobs_details_collection.aggregate(length_pipeline)))
+        total_elements = len(list(tasks_details_collection.aggregate(length_pipeline)))
         total_pages = calculate_total_pages(total_elements, page_size)
         skip = (page_number - 1) * page_size
         pipeline = [
@@ -520,9 +518,9 @@ def job_support(user):
         '$match': {
             'status': 'published',
                '$or': [
-                {'job_title': {'$regex': regex_pattern, '$options': 'i'}},
-                {'job_description': {'$regex': regex_pattern, '$options': 'i'}},
-                {'job_topics': {'$regex': regex_pattern, '$options': 'i'}},
+                {'task_title': {'$regex': regex_pattern, '$options': 'i'}},
+                {'task_description': {'$regex': regex_pattern, '$options': 'i'}},
+                {'task_topics': {'$regex': regex_pattern, '$options': 'i'}},
             ]  # You may add other conditions to filter jobs if needed
         }
     },
@@ -535,14 +533,6 @@ def job_support(user):
                 }
             }, 
             {
-                '$lookup': {
-                    'from': 'saved_jobs', 
-                    'localField': 'job_id', 
-                    'foreignField': 'job_id', 
-                    'as': 'saved_jobs_details'
-                }
-            }, 
-            {
                 '$project': {
                     '_id': 0
                 }
@@ -551,16 +541,15 @@ def job_support(user):
         {"$limit": page_size}  # Limit the number of documents per page
         ]
 
-        all_jobs = list(jobs_details_collection.aggregate(pipeline))
         all_tasks = list(tasks_details_collection.aggregate(pipeline))
         all_updated_jobs = []
-        for idx, job in enumerate(all_jobs):
-            if applied := candidate_job_application_collection.find_one({"job_id": job.get("job_id"),"user_id":  user_id},{"_id": 0}):
+        for idx, task in enumerate(all_tasks):
+            if applied := candidate_task_proposal_collection.find_one({"task_id": task.get("task_id"),"user_id":  user_id},{"_id": 0}):
                 pass
             else:
-                all_updated_jobs.append(job)
+                all_updated_jobs.append(task)
         profile_details = profile_details_collection.find_one({"user_id": user_id},{"_id": 0})
-        return jsonify({"user_name":user_name, "onboarding_details":onboarding_details, "all_jobs":all_updated_jobs,"all_tasks":all_jobs, "profile_details":profile_details, "total_pages":total_pages, "page_number":page_number})
+        return jsonify({"user_name":user_name, "onboarding_details":onboarding_details, "all_jobs":all_updated_jobs,"all_tasks":all_tasks, "profile_details":profile_details, "total_pages":total_pages, "page_number":page_number})
     
 @app.route("/applied_jobs", methods = ['GET'], endpoint='applied_jobs')
 @newlogin_is_required
@@ -570,11 +559,11 @@ def applied_jobs(user):
     onboarded = user.get("onboarded")
     user_id = user.get("user_id")
     if onboarded == False:
-        return redirect("/onboarding")
+         return jsonify({"message":"user is not onboarded"}),400
     onboarding_details = onboarding_details_collection.find_one({"user_id": user_id},{"_id": 0})
     resume_built = onboarding_details.get("resume_built")
     if not resume_built: 
-        return redirect("/billbot")
+         return jsonify({"message":"please build resume"}),400
     pageno = request.args.get("pageno")
     page_number = 1  # The page number you want to retrieve
     if pageno is not None:
@@ -631,13 +620,13 @@ def saved_jobs(user):
     onboarded = user.get("onboarded")
     user_id = user.get("user_id")
     if onboarded == False:
-        return redirect("/onboarding")
+         return jsonify({"message":"please onboard"}),400
     if request.method == 'POST':
         pass
     onboarding_details = onboarding_details_collection.find_one({"user_id": user_id},{"_id": 0})
     resume_built = onboarding_details.get("resume_built")
     if not resume_built: 
-        return redirect("/billbot")
+         return jsonify({"message":"resume is not built"}),400
     pageno = request.args.get("pageno")
     page_number = 1  # The page number you want to retrieve
     if pageno is not None:
@@ -702,7 +691,7 @@ def profile_update(user):
             profile_pic_link = upload_file_firebase(profile_pic, f"{user_id}/profile_pic.png")
             profile_data['profile_pic'] = profile_pic_link
         profile_details_collection.update_one({"user_id": user_id},{"$set": profile_data})
-        return redirect('/profile')
+        return jsonify({"message":"profile updated successfully"}),200
     if profile_details := profile_details_collection.find_one({"user_id": user_id},{"_id": 0}):
         if purpose == 'jobseeker':
             return jsonify({ 'profile_details':profile_details, 'user_id':user_id}) 
@@ -760,30 +749,6 @@ def upload_intro_candidate(user):
         profile_details_collection.update_one({"user_id": user_id},{"$set": {"intro_video_link": intro_video_link}})
         return jsonify({'message':'video is saved'}),200
 
-
-@app.route('/login-hirer', methods=['GET', 'POST'], endpoint="login_hirer")
-def login_hirer():
-    form_data = dict(request.form)
-    if request.method == 'POST':
-        user = user_details_collection.find_one({"email": form_data.get("email")},{"_id": 0})
-        if user :
-            email = form_data.get("email")
-            password = form_data.get("password")
-            if password==user.get("password"):
-               token = jwt.encode({
-               'public_id': user.get("user_id"),
-               'exp' : '300000000000000000000000000000000000'
-                }, APP_SECRET)
-               flash("Successfully Logged In")
-               return redirect(f'/dashboard')
-            else:
-             flash("Log in Failed")
-             return redirect(f'/login-hirer')
-        else:
-            abort(500,{"messages": f"Job with Job Id doesn't exist! "})
-    else:
-        return render_template("login_hirer.html")
-   
 
 @app.route('/login-user', methods=['GET', 'POST'], endpoint="login_user")
 def login_user():
@@ -985,7 +950,7 @@ def resume_built(user):
     onboarding_details_collection.update_one({"user_id": user_id},{"$set": {"resume_built": True}})
     resume_details_collection.update_one({"user_id": user_id},{"$set": {"resume_html": resume_html}})
     analyze_resume(user_id)
-    return redirect("/dashboard")
+    return jsonify({"message":"resume is saved"}),200
 
 @app.route('/resume_upload',methods = ['POST'], endpoint='resume_upload')
 @is_candidate
@@ -1004,7 +969,7 @@ def resume_upload(user):
         onboarding_details_collection.update_one({"user_id": user_id},{"$set": {"resume_built": True}})
         resume_text = extract_text_pdf(resume)
         analyze_resume(user_id, resume_text)
-        return redirect("/dashboard")
+        return jsonify({"message":"resume has been uploaded!"})
     
 @app.route('/update_resume',methods = ['POST'], endpoint='update_resume')
 @is_candidate
@@ -1022,7 +987,7 @@ def update_resume(user):
         profile_details_collection.update_one({"user_id": user_id},{"$set": data})
         resume_text = extract_text_pdf(resume)
         analyze_resume(user_id, resume_text)
-        return redirect("/profile")
+        return jsonify({"message":"resume has been updated"})
   
 @app.route("/have_resume", methods = ['POST'], endpoint='have_resume')
 @is_candidate
@@ -1177,7 +1142,7 @@ def onboarding_hirer(user):
     onboarded = user.get('onboarded')
     if onboarded == True:
         purpose = user.get("role")
-        return redirect("/dashboard")
+        return jsonify({"message":"onboarded successfully"}),200
     user_name = user.get("name")
     return jsonify({'user_name':user_name})
 
@@ -1233,7 +1198,7 @@ def onboarding_jobseeker(user):
     onboarded = user.get('onboarded')
     if onboarded == True:
         purpose = user.get("role")
-        return redirect("/dashboard")
+        return jsonify({"message":"onboarded successfully"})
     user_name = user.get("name")
     return jsonify({'user_name':user_name})
 
@@ -1265,7 +1230,7 @@ def edit_job(user,job_id):
     if request.method == 'POST':
         incoming_details = request.get_json(force=True)
         jobs_details_collection.update_one({"user_id": str(user_id), "job_id": str(job_id)},{"$set": incoming_details})
-        return redirect('/dashboard')
+        return jsonify({"message":"job is updated successfully!"})
     if job_details := jobs_details_collection.find_one({"user_id": str(user_id), "job_id": str(job_id)},{"_id": 0}):
         return jsonify({'job_details':job_details})
     
@@ -1276,7 +1241,7 @@ def delete_job(user,job_id):
     user_id = user.get("user_id")
     if request.method == 'POST':
         jobs_details_collection.delete_one({"user_id": str(user_id), "job_id": str(job_id)})
-        return redirect('/dashboard')
+        return jsonify({"message":"job deleted successfully"}),200
 
 @app.route('/save/job/<string:job_id>', methods=['POST'], endpoint="save_job")
 @newlogin_is_required
@@ -1447,15 +1412,12 @@ def alltasks(user):
     if onboarded == False:
         return redirect("/onboarding")
     onboarding_details = onboarding_details_collection.find_one({"user_id": user_id},{"_id": 0})
-    resume_built = onboarding_details.get("resume_built")
-    if not resume_built: 
-        return redirect("/billbot")
     pageno = request.args.get("pageno")
     page_number = 1  # The page number you want to retrieve
     if pageno is not None:
         page_number = int(pageno)
     page_size = 7   # Number of documents per page
-    total_elements = len(list(jobs_details_collection.find({},{"_id": 0})))
+    total_elements = len(list(tasks_details_collection.find({},{"_id": 0})))
     total_pages = calculate_total_pages(total_elements, page_size)
     skip = (page_number - 1) * page_size
     pipeline = [
