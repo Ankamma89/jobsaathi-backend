@@ -1263,7 +1263,7 @@ def create_job(user):
 def edit_job(user,job_id):
     user_id = user.get("user_id")
     if request.method == 'POST':
-        incoming_details = dict(request.form)
+        incoming_details = request.get_json(force=True)
         jobs_details_collection.update_one({"user_id": str(user_id), "job_id": str(job_id)},{"$set": incoming_details})
         return redirect('/dashboard')
     if job_details := jobs_details_collection.find_one({"user_id": str(user_id), "job_id": str(job_id)},{"_id": 0}):
@@ -1299,7 +1299,7 @@ def save_job(user,job_id):
 def create_task(user):
     user_id = user.get("user_id")
     task_id = str(uuid.uuid4())
-    task_details = dict(request.form)
+    task_details = request.get_json(force=True)
     task_details['user_id'] = user_id
     task_details['task_id'] = task_id
     task_details['created_on'] = datetime.now()
@@ -1311,7 +1311,7 @@ def create_task(user):
 def edit_task(user,task_id):
     user_id = user.get("user_id")
     if request.method == 'POST':
-        incoming_details = dict(request.form)
+        incoming_details = request.get_json(force=True)
         tasks_details_collection.update_one({"user_id": str(user_id), "task_id": str(task_id)},{"$set": incoming_details})
         return jsonify({"message":"task editedd successfully"}),200
     if task_details := tasks_details_collection.find_one({"user_id": str(user_id), "task_id": str(task_id)},{"_id": 0}):
