@@ -1262,7 +1262,6 @@ def save_job(user,job_id):
         return {"status": "saved"}
     
 @app.route('/create_task',methods=['POST'], endpoint="create_task")
-@is_hirer
 @newlogin_is_required
 def create_task(user):
     user_id = user.get("user_id")
@@ -1276,7 +1275,6 @@ def create_task(user):
     
 @app.route('/edit/task/<string:task_id>', methods=['GET', 'POST'], endpoint="edit_task")
 @newlogin_is_required
-@is_hirer
 def edit_task(user,task_id):
     user_id = user.get("user_id")
     if request.method == 'POST':
@@ -1408,7 +1406,6 @@ def job_responses(user,job_id):
     
 
 @app.route("/alltasks", methods = ['GET'], endpoint='alltasks')
-@is_candidate
 @newlogin_is_required
 def alltasks(user):
     user_name = user.get("name")
@@ -1453,7 +1450,6 @@ def alltasks(user):
 # View a Task details Faizan
 @app.route('/view/task/<string:task_id>', methods=['GET'], endpoint="view_task")
 @newlogin_is_required
-@is_candidate
 def view_task(user, task_id):
     viewer_name = user.get("name")
     viewer_id = user.get("user_id")
@@ -1480,7 +1476,6 @@ def view_task(user, task_id):
 
 @app.route('/apply/task/<string:task_id>', methods=['GET', 'POST'], endpoint="apply_task")
 @newlogin_is_required
-@is_candidate
 def apply_task(user,task_id):
     user_id = user.get("user_id")
     pipeline = [
@@ -1502,8 +1497,8 @@ def apply_task(user,task_id):
     proposals = list(candidate_task_proposal_collection.aggregate(pipeline))
     if request.method == 'POST':
         if task_details := tasks_details_collection.find_one({"task_id": task_id},{"_id": 0}):
-            form_data = dict(request.form)
-            amount = form_data.get("amount")
+            form_data = request.get_json(force=True)
+            quote = form_data.get("quote")
             deposit = form_data.get("deposit")
             message = form_data.get("message")
             task_apply_data = {
@@ -1513,12 +1508,12 @@ def apply_task(user,task_id):
                 "applied_on": datetime.now(),
                 "status": "Applied",
                 "message":message,
-                "amount":amount,
+                "quote":quote,
                 "deposit":deposit
             }
             candidate_task_proposal_collection.insert_one(task_apply_data)
             flash("Successfully Applied for the Job. Recruiters will get back to you soon, if you are a good fit.")
-            return redirect(f'/apply/task/{task_id}')
+            return jsonify({"message":"successfully applied for the task"})
         else:
             abort(500,{"messages": f"Job with Job Id {task_id} doesn't exist! "})
     tasks_details_collection.update_one({"task_id": task_id},{"$inc": {"views": 1}})
@@ -1553,11 +1548,10 @@ def apply_task(user,task_id):
         abort(500, {"message": f"JOB with job_id {task_id} not found!"})
 
 
-@app.route('/responses/task/<string:task_id>', methods=['GET', 'POST'], endpoint="task_responses")
+@app.route('/proposals/task/<string:task_id>', methods=['GET', 'POST'], endpoint="task_responses")
 @newlogin_is_required
-@is_hirer
 @is_onboarded
-def task_responses(task_id):
+def task_responses(user,task_id):
     if task_details := tasks_details_collection.find_one({"task_id": task_id},{"_id": 0, "task_title" :1, "mode_of_work": 1}):
         pageno = request.args.get("pageno")
         page_number = 1  # The page number you want to retrieve
@@ -1569,7 +1563,7 @@ def task_responses(task_id):
         skip = (page_number - 1) * page_size
         pipeline = [
             {
-                "$match": {"job_id": task_id}
+                "$match": {"task_id": task_id}
             },
             {
                 '$lookup': {
