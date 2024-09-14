@@ -1614,6 +1614,53 @@ def task_responses(user,task_id):
         all_responses = list(candidate_task_proposal_collection.aggregate(pipeline))
         return jsonify({"task_id":task_id, "all_responses":all_responses, "task_details":task_details, "total_pages":total_pages, "page_number":page_number})
 
+@app.route('/proposalsSent', methods=['GET', 'POST'], endpoint="proposals")
+@newlogin_is_required
+@is_onboarded
+def proposals(user):
+    user_id=user.get('user_id')
+    if proposals := candidate_task_proposal_collection.find({"user_id": user_id},{"_id": 0}):
+        pageno = request.args.get("pageno")
+        page_number = 1  # The page number you want to retrieve
+        if pageno is not None:
+            page_number = int(pageno)
+        page_size = 7   # Number of documents per page
+        total_elements = len(list(candidate_task_proposal_collection.find({"user_id": user_id})))
+        total_pages = calculate_total_pages(total_elements, page_size)
+        skip = (page_number - 1) * page_size
+        pipeline = [
+            {
+                "$match": {"user_id": user_id}
+            },
+            {
+                '$lookup': {
+                    'from': 'tasks_details', 
+                    'localField': 'task_id', 
+                    'foreignField': 'task_id', 
+                    'as': 'task_details'
+                }
+            },
+            {
+                '$lookup': {
+                    'from': 'user_details', 
+                    'localField': 'user_id', 
+                    'foreignField': 'user_id', 
+                    'as': 'user_details'
+                }
+            },
+           {
+        '$project': {
+            '_id': 0, 
+            'user_details._id': 0,
+            'candidate_details._id': 0,
+        },
+    },
+        {"$skip": skip},  # Skip documents based on the calculated skip value
+        {"$limit": page_size}  # Limit the number of documents per page
+        ]
+        proposals = list(candidate_task_proposal_collection.aggregate(pipeline))
+        return jsonify({"proposals":proposals,"total_pages":total_pages, "page_number":page_number})
+
 @app.route("/chats", methods=['GET'], endpoint='all_chats')
 @newlogin_is_required
 def all_chats(user):
