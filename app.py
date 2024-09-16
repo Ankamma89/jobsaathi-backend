@@ -1893,8 +1893,10 @@ def view__jobs(user):
     else:
         abort(404, {"message": "Jobs not found"})
 
-@app.route("/filterJobs", methods=['GET'])
-def filter_jobs():
+@app.route("/filterJobs", methods=['GET'], endpoint="filter__jobs")
+@newlogin_is_required
+def filter_jobs(user):
+    user_id=user.get('user_id')
     searched_for = request.args.get("search")
     job_title = request.args.get("job_title")
     experience_level = request.args.get("experience_level")
@@ -1957,9 +1959,14 @@ def filter_jobs():
             }
         }
     ])
-
     all_jobs = list(jobs_details_collection.aggregate(pipeline))
-    return jsonify({'all_jobs': all_jobs})
+    all_updated_jobs = []
+    for idx, job in enumerate(all_jobs):
+            if applied := candidate_job_application_collection.find_one({"job_id": job.get("job_id"),"user_id": user_id},{"_id": 0}):
+                pass
+            else:
+                all_updated_jobs.append(job)
+    return jsonify({'all_jobs': all_updated_jobs})
 
 @app.route("/jobs/tags", methods=['GET'])
 def get_most_used_tags():
