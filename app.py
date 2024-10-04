@@ -2,7 +2,7 @@ from json import dumps
 from flask import Flask, json, request, render_template, redirect, abort, session, flash, make_response
 from client_secret import client_secret, initial_html
 from db import task_seen_by_collection, tasks_details_collection,user_details_collection, onboarding_details_collection, jobs_details_collection, candidate_job_application_collection,candidate_task_proposal_collection, chatbot_collection, resume_details_collection, profile_details_collection, saved_jobs_collection, chat_details_collection, connection_details_collection
-from helpers import  query_update_billbot, add_html_to_db, analyze_resume, upload_file_firebase, extract_text_pdf, outbound_messages, next_build_status, updated_build_status, text_to_html, calculate_total_pages, mbsambsasmbsa
+from helpers import  query_update_billbot,get_resume_html_db, add_html_to_db, analyze_resume, upload_file_firebase, extract_text_pdf, outbound_messages, next_build_status, updated_build_status, text_to_html, calculate_total_pages, mbsambsasmbsa
 from jitsi import create_jwt
 import os
 from flask import jsonify
@@ -103,7 +103,6 @@ def is_candidate(function):
             return abort(500)  
         else:
             purpose = user.get('role')
-            print(user,'is it jobseeker')
             if purpose == "jobseeker":
                 return function(*args, **kwargs)
             else:
@@ -286,15 +285,16 @@ def alljobs(user):
 @app.route("/dashboard", methods=['GET'], endpoint='dashboard')
 @newlogin_is_required
 def dashboard(user):
+    print(user,'usere')
     user_name = user.get("name")
     onboarded = user.get("onboarded")
     user_id = user.get("user_id")
-    
+    print(onboarded,'onboarded')
     if not onboarded:
+        print('onboarde failed')
         return jsonify({"message": "please onboard"}), 200
-
     onboarding_details = onboarding_details_collection.find_one({"user_id": user_id}, {"_id": 0})
-    purpose = onboarding_details.get("purpose")
+    purpose = user.get("role")
     resume_built = onboarding_details.get("resume_built")
 
     if purpose == 'hirer':
@@ -941,6 +941,7 @@ def current_build_status(user):
 @newlogin_is_required
 @is_candidate
 def resume_built(user):
+    print(request.get_json(force=True) ,'resumehtml')
     form_data = request.get_json(force=True) 
     resume_html = form_data.get("resume_html")
     user_id = user.get("user_id")
@@ -992,10 +993,26 @@ def update_resume(user):
 def have_resume(user):
     user_id = user.get("user_id")
     onboarding_details_collection.update_one({"user_id": user_id}, {"$set": {"phase": "2"}})
-    resume_data = {"user_id": user_id,"resume_html":initial_html}
+    data=request.get_json(force=True)
+    resume_data = {"user_id": user_id,"resume_html":data.get('resumeFormat')}
     resume_details_collection.insert_one(resume_data)
-    return redirect("/billbot")
+    resume_html = get_resume_html_db(user_id)
+    profile=profile_details_collection.find_one({"user_id":user_id})
+    name=profile.get('name')
+    statement="i am"+" "+name
+    print(resume_html,statement,'resume_html')
+    html_code=query_update_billbot(user_id,statement, 'nxt_build_status_')
+    add_html_to_db(user_id, html_code)
+    return jsonify({"message":"updated successfully"})
 
+@app.route("/rebuild_resume", methods = ['GET'], endpoint='rebuild_resume')
+@is_candidate
+@newlogin_is_required
+def rebuild_resume(user):
+    user_id = user.get("user_id")
+    onboarding_details_collection.update_one({"user_id": user_id}, {"$set": {"phase": "1"}})
+    resume_details_collection.delete_one({"user_id": user_id})
+    return jsonify({"message":"updated successfully"})
 
 @app.route("/allresumes", methods = ['GET'], endpoint='allresumes')
 def allresumes():
@@ -1167,9 +1184,11 @@ def onboarding_jobseeker(user):
                         onboarding_details['resume_built'] = False
                         profile_data = {
                             "user_id": user_details.get("user_id"),
-                            "name": onboarding_details.get("candidate_name"),
+                            "name": user_details.get("name"),
                             "email": user_details.get("email"),
                             "mobno": onboarding_details.get("candidate_mobno"),
+                            "education":onboarding_details.get("education"),
+                            "experience":onboarding_details.get("experience")
                         }
                         profile_details_collection.insert_one(profile_data)
                     elif purpose and purpose == "hirer":
@@ -1765,7 +1784,7 @@ def specific_chat(user,incoming_user_id, job_id):
     hirer_id = incoming_user_id if purpose == "jobseeker" else user_id
     jobseeker_id = user_id if purpose == "jobseeker" else incoming_user_id
     if onboarding_details := onboarding_details_collection.find_one({"user_id": incoming_user_id},{"_id": 0}):
-        name = onboarding_details.get("company_name") if purpose == "jobseeker" else onboarding_details.get("jobseeker_name")
+        name = onboarding_details.get("company_name") if purpose == "jobseeker" else onboarding_details.get("candidate_name")
         pipeline = [
             {"$match": {"hirer_id": hirer_id, "jobseeker_id": jobseeker_id, "job_id": job_id}},
             {"$project": {"_id": 0}}
@@ -1838,7 +1857,6 @@ def verify_token_route():
         return jsonify({"valid": False, "message": "Invalid token"}), 401 
 
 @app.route("/meet/<string:channel_id>", methods=['GET'], endpoint='meeting')
-@login_is_required
 def meeting(channel_id):
     purpose = request.args.get("purpose")
     candidate_id, hirer_id, job_id = channel_id.split("_")
@@ -1883,12 +1901,13 @@ def meeting(channel_id):
                 jwt = create_jwt(company_name, hirer_email, True)
         else:
                 jwt = create_jwt(candidate_name, candidate_email, False)
+        print(purpose,'purpose')
         meet_details = {
-            "roomName": f"vpaas-magic-cookie-c1b5084297244909bc3d1d4dc2b51775/{channel_id}",
+            "roomName": f"vpaas-magic-cookie-06dfe06f9743475abdab4c2e451d3894/{channel_id}",
             "jwt": jwt,
             "meetLink": f"http:127.0.0.1:5000/meet/{channel_id}"
         }
-        return render_template('videoservice/main.html', meet_details=meet_details, job_details=job_details, onboarding_details=onboarding_details)
+        return render_template('videoservice/main.html', meet_details=meet_details,jwt=jwt, job_details=job_details, onboarding_details=onboarding_details)
     else:
         abort(500, {"message": "Invalid Channel ID"})
 
@@ -1910,9 +1929,7 @@ def view_job(user,job_id):
 def view_jobs(user):
     user_id = user.get("user_id")
     jobs_details_cursor = jobs_details_collection.find({"user_id": str(user_id)}, {"_id": 0})
-    
     jobs_details = list(jobs_details_cursor)
-    
     if jobs_details:
         return jsonify({'jobs_details': jobs_details})
     else:
