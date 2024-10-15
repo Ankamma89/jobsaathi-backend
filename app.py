@@ -318,11 +318,13 @@ def handle_hirer_dashboard(user_id, user_name, onboarding_details):
     
     all_published_jobs = list(jobs_details_collection.find({"user_id": user_id, "status": "published"}, {"_id": 0}))
     total_selected_candidates = list(candidate_job_application_collection.find({"hirer_id": user_id, "status": "Accepted"}, {"_id": 0}))
+    applicants=list(candidate_job_application_collection.find({"hirer_id": user_id}, {"_id": 0}))
 
     stats = {
         "total_jobs": jobs_details_collection.count_documents({"user_id": user_id}),
         "total_published_jobs": len(all_published_jobs),
-        "total_selected_candidates": len(total_selected_candidates)
+        "total_selected_candidates": len(total_selected_candidates),
+        "applicants":len(applicants)
     }
 
     total_elements = jobs_details_collection.count_documents({"user_id": user_id})
@@ -1252,6 +1254,31 @@ def onboarding_details(user):
     user_id=user.get('user_id')
     onboarding=onboarding_details_collection.find_one({"user_id": user_id},{"_id": 0})
     return jsonify({'onboarding':onboarding})
+
+@app.route("/all_companies", methods=['GET', 'POST'],endpoint='all_onboarding_details')
+def all_onboarding_details():
+    companies=list(onboarding_details_collection.find({},{"_id": 0}))
+    #profiles=list(profile_details_collection.find({},{"_id": 0}))
+    pipeline = [
+            {
+                '$match': {}
+            }, {
+                '$lookup': {
+                    'from': 'jobs_details', 
+                    'localField': 'user_id', 
+                    'foreignField': 'user_id', 
+                    'as': 'jobs_details'
+                }
+            }, {
+                '$project': {
+                    '_id': 0, 
+                    'jobs_details._id': 0
+                }
+            }
+        ]
+    
+    profiles = list(profile_details_collection.aggregate(pipeline))
+    return jsonify({'companies':companies,'profiles':profiles})
     
 @app.route('/create_job',methods=['POST'], endpoint="create_job")
 @is_hirer
