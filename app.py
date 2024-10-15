@@ -372,7 +372,30 @@ def handle_jobseeker_dashboard(user_id, user_name, onboarding_details, resume_bu
     saved_jobs = list(saved_jobs_collection.find({"user_id": user_id}, {"_id": 0}))
     
     # Fetch applied jobs
-    applied_jobs = list(candidate_job_application_collection.find({"user_id": user_id}, {"_id": 0}))
+    pipeline = [
+            {
+                "$match": {"user_id": user_id}
+            },
+            {
+                '$lookup': {
+                    'from': 'jobs_details', 
+                    'localField': 'job_id', 
+                    'foreignField': 'job_id', 
+                    'as': 'job_details'
+                }
+            },
+           {
+        '$project': {
+            '_id': 0, 
+            'job_details._id':0
+        },
+    },
+        # Skip documents based on the calculated skip value
+        {"$limit": page_size}  # Limit the number of documents per page
+        ]
+    applied_jobs = list(candidate_job_application_collection.aggregate(pipeline))
+    #print(all_jobs,'alljobs')
+    #applied_jobs = list(candidate_job_application_collection.find({"user_id": user_id}, {"_id": 0}))
     
     # Fetch task proposals
     task_proposals = list(candidate_task_proposal_collection.find({"user_id": user_id}, {"_id": 0}))
@@ -1126,11 +1149,16 @@ def onboarding_hirer(user):
             abort(401)
         else:
             onboarding_details = dict(request.form)
+            print(onboarding_details,'details')
+            purpose=''
             if user_details := user_details_collection.find_one({"user_id": user_id},{"_id": 0}):
+             print(user_details,'userdata')
              if user_details.get('role')=='hirer':
-                     purpose='hirer'
+                print('hirer')
+                purpose='hirer'
              onboarding_details['user_id'] = user_id
              if user_details.get("onboarded") == False:
+                    print(purpose,'purposes')
                     data = {"onboarded": True}
                     onboarding_details['status'] = "active"
                     if purpose and purpose == "hirer":
@@ -1403,6 +1431,14 @@ def job_responses(user,job_id):
                     'localField': 'user_id', 
                     'foreignField': 'user_id', 
                     'as': 'user_details'
+                }
+            },
+             {
+                '$lookup': {
+                    'from': 'resume', 
+                    'localField': 'user_id', 
+                    'foreignField': 'user_id', 
+                    'as': 'resume_details'
                 }
             },
            {
