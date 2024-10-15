@@ -235,11 +235,9 @@ def alljobs(user):
     user_name = user.get("user_id")
     onboarded = user.get("onboarded")
     user_id = user.get("user_id")
-    print(onboarded,'onboarded')
     if onboarded == False:
         return redirect("/onboarding")
     onboarding_details = onboarding_details_collection.find_one({"user_id": user_id},{"_id": 0})
-    print(onboarding_details)
     resume_built = onboarding_details.get("resume_built")
     if not resume_built: 
         return redirect("/billbot")
@@ -285,13 +283,10 @@ def alljobs(user):
 @app.route("/dashboard", methods=['GET'], endpoint='dashboard')
 @newlogin_is_required
 def dashboard(user):
-    print(user,'usere')
     user_name = user.get("name")
     onboarded = user.get("onboarded")
     user_id = user.get("user_id")
-    print(onboarded,'onboarded')
     if not onboarded:
-        print('onboarde failed')
         return jsonify({"message": "please onboard"}), 200
     onboarding_details = onboarding_details_collection.find_one({"user_id": user_id}, {"_id": 0})
     purpose = user.get("role")
@@ -396,7 +391,6 @@ def handle_jobseeker_dashboard(user_id, user_name, onboarding_details, resume_bu
         {"$limit": page_size}  # Limit the number of documents per page
         ]
     applied_jobs = list(candidate_job_application_collection.aggregate(pipeline))
-    #print(all_jobs,'alljobs')
     #applied_jobs = list(candidate_job_application_collection.find({"user_id": user_id}, {"_id": 0}))
     
     # Fetch task proposals
@@ -763,7 +757,6 @@ def public_candidate_profile(user_id):
 @newlogin_is_required
 @is_candidate
 def upload_intro_candidate(user):
-    print(user,'uploaduing')
     user_id = user.get("user_id")
     if 'intro_video' in request.files and str(request.files['intro_video'].filename)!="":
         intro_video = request.files['intro_video']
@@ -847,7 +840,6 @@ def register_hirer():
 @app.route('/register-jobseeker', methods=['GET', 'POST'], endpoint="register_jobseeker")
 def register_jobseeker():
     form_data = request.get_json(force=True) 
-    print(form_data,'formdatteee')
     user_id=str(uuid.uuid4())
     if request.method == 'POST':
         if user_details_collection.find_one({"email": form_data.get("email")},{"_id": 0}) is None:
@@ -966,7 +958,6 @@ def current_build_status(user):
 @newlogin_is_required
 @is_candidate
 def resume_built(user):
-    print(request.get_json(force=True) ,'resumehtml')
     form_data = request.get_json(force=True) 
     resume_html = form_data.get("resume_html")
     user_id = user.get("user_id")
@@ -1025,7 +1016,6 @@ def have_resume(user):
     profile=profile_details_collection.find_one({"user_id":user_id})
     name=profile.get('name')
     statement="i am"+" "+name
-    print(resume_html,statement,'resume_html')
     html_code=query_update_billbot(user_id,statement, 'nxt_build_status_')
     add_html_to_db(user_id, html_code)
     return jsonify({"message":"updated successfully"})
@@ -1156,16 +1146,12 @@ def onboarding_hirer(user):
             abort(401)
         else:
             onboarding_details = dict(request.form)
-            print(onboarding_details,'details')
             purpose=''
             if user_details := user_details_collection.find_one({"user_id": user_id},{"_id": 0}):
-             print(user_details,'userdata')
              if user_details.get('role')=='hirer':
-                print('hirer')
                 purpose='hirer'
              onboarding_details['user_id'] = user_id
              if user_details.get("onboarded") == False:
-                    print(purpose,'purposes')
                     data = {"onboarded": True}
                     onboarding_details['status'] = "active"
                     if purpose and purpose == "hirer":
@@ -1790,13 +1776,11 @@ def proposals(user):
 @app.route("/chats", methods=['GET'], endpoint='all_chats')
 @newlogin_is_required
 def all_chats(user):
-    print(user)
     user_id = user.get("user_id")
     purpose = user.get("role")
     key = "hirer_id" if purpose == "hirer" else "jobseeker_id"
     localField = "hirer_id" if purpose == "jobseeker" else "jobseeker_id"
     localAs = "hirer_details" if purpose == "jobseeker" else "jobseeker_details"
-    print(localAs,localField,key,user_id,'keys')
     pipeline = [
          {
                 "$match": {key: user_id}
@@ -1863,7 +1847,6 @@ def specific_chat(user,incoming_user_id, job_id):
         meet_details = {
             "meetLink": f"http://127.0.0.1:5000/meet/{channel_id}"
         }
-        print(all_chats,job_details,purpose,channel_id,job_id,text_to_html,'job chat')
         return jsonify({'incoming_user_id':incoming_user_id, 'purpose':purpose, 'all_chats':all_chats, 'name':name, 'channel_id':channel_id, 'job_id':job_id, 'job_details':job_details, 'meet_details':meet_details})
     else:
         abort(500, {"message": "User Not Found!"})
@@ -1969,7 +1952,6 @@ def meeting(channel_id):
                 jwt = create_jwt(company_name, hirer_email, True)
         else:
                 jwt = create_jwt(candidate_name, candidate_email, False)
-        print(purpose,'purpose')
         meet_details = {
             "roomName": f"vpaas-magic-cookie-06dfe06f9743475abdab4c2e451d3894/{channel_id}",
             "jwt": jwt,
