@@ -1044,6 +1044,11 @@ def allresumes():
     resumes=list(resume_details_collection.find({}, {'_id': 0}))
     return jsonify({"resumes":resumes})
 
+@app.route("/all__jobs", methods = ['GET'], endpoint='all__jobs')
+def all__jobs():
+    jobs=list(jobs_details_collection.find({}, {'_id': 0}))
+    return jsonify({"jobs":jobs})
+
 @app.route("/all-jobs", methods = ['GET'], endpoint='all_jobs')
 def all_jobs():
     jobs=list(jobs_details_collection.find({}, {'_id': 0}))
