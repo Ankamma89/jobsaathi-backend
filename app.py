@@ -1,3 +1,5 @@
+from dotenv import load_dotenv
+load_dotenv()  # Load environment variables from .env file
 from json import dumps
 from flask import Flask, json, request, render_template, redirect, abort, session, flash, make_response
 from client_secret import client_secret, initial_html
@@ -7,7 +9,7 @@ from jitsi import create_jwt
 import os
 from flask import jsonify
 import jwt
-from datetime import datetime
+from datetime import datetime,timedelta
 from bson import ObjectId
 import json
 from flask.json import JSONEncoder
@@ -23,6 +25,8 @@ import pusher
 from flask_cors import CORS
 from collections import Counter
 import re
+  # Load environment variables from .env file
+
 
 pusher_client = pusher.Pusher(
   app_id=os.environ['PUSHER_APP_ID'],
@@ -1311,7 +1315,7 @@ def delete_job(user,job_id):
 def save_job(user,job_id):
     user_id = user.get("user_id")
     if _ := saved_jobs_collection.find_one({"user_id": user_id, "job_id": job_id},{"_id": 0}):
-        return "error"
+        return "error",400
     else:
         saved_job_data = {
             "user_id": user_id,
@@ -1348,13 +1352,13 @@ def edit_task(user,task_id):
 @app.route('/remove_saved_job/<string:job_id>', methods=['POST'], endpoint="remove_saved_job")
 @newlogin_is_required
 @is_candidate
-def remove_saved_job(job_id):
-    user_id = session.get("user_id")
+def remove_saved_job(user,job_id):
+    user_id = user.get("user_id")
     if _ := saved_jobs_collection.find_one({"user_id": user_id, "job_id": job_id},{"_id": 0}):
         saved_jobs_collection.delete_one({"user_id": user_id, "job_id": job_id})
         return {"status": "deleted"}
     else:
-        return "error"
+        return "error",400
 
 
 @app.route('/apply/job/<string:job_id>', methods=['GET', 'POST'], endpoint="apply_job")
@@ -1828,10 +1832,11 @@ def specific_chat(user,incoming_user_id, job_id):
             "sent_by": purpose,
             "sent_on": datetime.now(),
             "msg": msg,
+            "seen":False
         }
         chat_details_collection.insert_one(chat_details)
         channel_id = f"{user_id}_{incoming_user_id}_{job_id}" if purpose == "jobseeker" else f"{incoming_user_id}_{user_id}_{job_id}"
-        pusher_client.trigger(channel_id, purpose, {'msg': msg})
+        #pusher_client.trigger(channel_id, purpose, {'msg': msg})
         return {"status": "saved"}
     hirer_id = incoming_user_id if purpose == "jobseeker" else user_id
     jobseeker_id = user_id if purpose == "jobseeker" else incoming_user_id
@@ -1845,7 +1850,7 @@ def specific_chat(user,incoming_user_id, job_id):
         channel_id = f"{user_id}_{incoming_user_id}_{job_id}" if purpose == "jobseeker" else f"{incoming_user_id}_{user_id}_{job_id}"
         job_details = jobs_details_collection.find_one({"job_id": job_id},{"_id": 0,"job_title": 1})
         meet_details = {
-            "meetLink": f"http://127.0.0.1:5000/meet/{channel_id}"
+            "meetLink": f"{url_}/meet/{channel_id}"
         }
         return jsonify({'incoming_user_id':incoming_user_id, 'purpose':purpose, 'all_chats':all_chats, 'name':name, 'channel_id':channel_id, 'job_id':job_id, 'job_details':job_details, 'meet_details':meet_details})
     else:
@@ -2011,7 +2016,8 @@ def filter_jobs(user):
     mode_of_work = request.args.get("mode_of_work")
     job_location = request.args.get("job_location")
     job_type = request.args.get("job_type")
-
+    job_posted=request.args.get("job_posted")
+    print(request.args,'args')
     query = {}
     if job_title:
         query['job_title'] = {"$regex": job_title, "$options": "i"}
@@ -2025,15 +2031,42 @@ def filter_jobs(user):
         query['mode_of_work'] = mode_of_work
     if job_location:
         query['job_location'] = job_location
-
+    if job_posted:
+        query['created_on'] = job_posted
     if job_topics:
         # Remove '#' if present and create a regex pattern
         topics = [topic.strip('#') for topic in job_topics.split()]
         topics_regex = '|'.join(topics)
         query['job_topics'] = {"$regex": topics_regex, "$options": "i"}
-
-    pipeline = []
-
+    print(job_posted,'when')
+    if job_posted:
+       start = datetime.now()-timedelta(days=int(job_posted))
+       end = datetime.now()
+       query['created_on'] = {"$gte":start,"$lt":end}
+    pipeline = [
+        {
+            '$lookup': {
+                'from': 'jobs_details', 
+                'localField': 'job_id', 
+                'foreignField': 'job_id', 
+                'as': 'job_details'
+            }
+        }, 
+        {
+                '$lookup': {
+                    'from': 'saved_jobs', 
+                    'localField': 'job_id', 
+                    'foreignField': 'job_id', 
+                    'as': 'saved_jobs_details'
+                }
+            }, 
+        {
+            '$project': {
+                '_id': 0,
+                'job_details._id': 0
+            }
+        }
+    ]
     if searched_for:
         pipeline.append({
             "$match": {
