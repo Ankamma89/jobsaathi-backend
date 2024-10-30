@@ -1805,17 +1805,85 @@ def all_chats(user):
                     'as': "job_details"
                 }
             },
-            
+         
+        {"$lookup": {
+            "from": "chat_details",
+            "let": { "connection_hirer_id":"$hirer_id","connection_jobseeker_id":"$jobseeker_id","connection_job_id": "$job_id" },
+            "pipeline": [
+                {
+                    "$match": {
+                        "$expr": {
+                            "$and": [
+                                #{"$ne":["$sent_by",purpose]},
+                                  { "$eq": ["$job_id", "$$connection_job_id"] },
+                                    { "$eq": ["$hirer_id", "$$connection_hirer_id"] },
+                                    { "$eq": ["$jobseeker_id", "$$connection_jobseeker_id"] },
+                                #{ "$eq": ["$seen", False] } 
+                            ]
+                        }
+                    }
+                },
+                 { "$sort": { "sent_on": -1 } },  # Sort by `sent_on` in descending order
+                    #{ "$group": {
+                     #   "_id": None,
+                     #   "last_unread_message": { "$first": "$$ROOT" },  # Take the most recent unread message
+                     #   "unread_count": { "$sum": 1 }  # Count all unseen messages
+                    #}},
+                 #{ "$sort": { "sent_on": -1 } },  # Sort messages in descending order of sent_on
+                    { "$group": {
+                        "_id": None,
+                        "all_messages": {
+                            "$push": {
+                                "msg": "$msg",
+                                "sent_on": "$sent_on",
+                                "seen": "$seen"
+                            }
+                        },  # Collect all messages with msg, sent_on, seen
+                        "last_message": {
+                            "$first": { "msg": "$msg", "sent_on": "$sent_on" }  # Get text and date of the last message
+                        },
+                        "unread_count":  {"$sum": {"$cond": [{"$and": [ { "$eq": ["$seen", False] }, { "$ne": ["$sent_by", purpose] }] },1,0 ]}}
+                    }}
+            ],
+            "as": "unread_messages"
+        },
+         },
+          {
+            "$addFields": {
+                  "last_unread_message": {
+                    "$ifNull": [{ "$arrayElemAt": ["$unread_messages.last_unread_message", 0] }, None]
+                },
+                "last_message_date": {
+                    "$ifNull":[{ "$arrayElemAt": ["$unread_messages.last_message.sent_on", 0] }, datetime.min]  # Set to sent_on of last unread message
+                }
+            },
+        },
            {
         '$project': {
             '_id': 0, 
             f'{localAs}._id': 0,
             'job_details._id': 0,
         }
-    }
+    },
+      {
+            "$sort": {
+                "last_message_date": -1  # Sort by last unread message date in descending order
+            }
+        }
     ]
     all_connections = list(connection_details_collection.aggregate(pipeline))
     return jsonify({"purpose":purpose, "all_connections":all_connections})
+
+@app.route("/unread", methods=['GET'], endpoint='unread_chats')
+@newlogin_is_required
+def unread_chats(user):
+    user_id = user.get("user_id")
+    purpose = user.get("role")
+    key = "hirer_id" if purpose == "hirer" else "jobseeker_id"
+    count=connection_details_collection.count_documents({key:user_id})
+    all_chats=list(chat_details_collection.find({"sent_by": {"$ne":purpose},key:user_id,'seen':False},{"_id": 0}))
+    return jsonify({"purpose":purpose, "all_chats":all_chats,"count":count})
+
 
 import time
 @app.route("/chat/<string:incoming_user_id>/<string:job_id>", methods=['GET', 'POST'], endpoint='specific_chat')
@@ -1844,8 +1912,9 @@ def specific_chat(user,incoming_user_id, job_id):
         name = onboarding_details.get("company_name") if purpose == "jobseeker" else onboarding_details.get("candidate_name")
         pipeline = [
             {"$match": {"hirer_id": hirer_id, "jobseeker_id": jobseeker_id, "job_id": job_id}},
-            {"$project": {"_id": 0}}
+            {"$project": {"_id": 0}},
         ]
+        chat_details_collection.update_many({"sent_by": {"$ne":purpose},"jobseeker_id":jobseeker_id, "hirer_id": hirer_id, "job_id": job_id},{"$set": {"seen": True}})
         all_chats = list(chat_details_collection.aggregate(pipeline))
         channel_id = f"{user_id}_{incoming_user_id}_{job_id}" if purpose == "jobseeker" else f"{incoming_user_id}_{user_id}_{job_id}"
         job_details = jobs_details_collection.find_one({"job_id": job_id},{"_id": 0,"job_title": 1})
@@ -1861,7 +1930,7 @@ def specific_chat(user,incoming_user_id, job_id):
 @is_hirer
 def initiate_chat(user,jobseeker_id, job_id):
     user_id = user.get("user_id")
-    if connection_details := connection_details_collection.find_one({"jobseeker_id": jobseeker_id, "hirer_id": user_id},{"_id": 0}):
+    if connection_details := connection_details_collection.find_one({"jobseeker_id": jobseeker_id, "hirer_id": user_id,"job_id":job_id},{"_id": 0}):
         pass
     else:
         if _ := candidate_job_application_collection.find_one({"user_id": jobseeker_id, "hirer_id": user_id, "job_id": job_id},{"_id": 0}):
@@ -2017,6 +2086,7 @@ def filter_jobs(user):
     job_location = request.args.get("job_location")
     job_type = request.args.get("job_type")
     job_posted=request.args.get("job_posted")
+    job_category=request.args.get("job_category")
     print(request.args,'args')
     query = {}
     if job_title:
@@ -2033,6 +2103,8 @@ def filter_jobs(user):
         query['job_location'] = job_location
     if job_posted:
         query['created_on'] = job_posted
+    if job_category:
+        query['job_category'] = job_category
     if job_topics:
         # Remove '#' if present and create a regex pattern
         topics = [topic.strip('#') for topic in job_topics.split()]
@@ -2106,6 +2178,104 @@ def filter_jobs(user):
             else:
                 all_updated_jobs.append(job)
     return jsonify({'all_jobs': all_updated_jobs})
+
+@app.route("/ufilterJobs", methods=['GET'], endpoint="ufilter__jobs")
+def ufilter_jobs():
+    searched_for = request.args.get("search")
+    job_title = request.args.get("job_title")
+    experience_level = request.args.get("experience_level")
+    job_topics = request.args.get("job_topics")
+    salary_range = request.args.get("salary_range")
+    mode_of_work = request.args.get("mode_of_work")
+    job_location = request.args.get("job_location")
+    job_type = request.args.get("job_type")
+    job_posted=request.args.get("job_posted")
+    job_category=request.args.get("job_category")
+    print(request.args,'args')
+    query = {}
+    if job_title:
+        query['job_title'] = {"$regex": job_title, "$options": "i"}
+    if experience_level:
+        query['experience_level'] = experience_level
+    if salary_range:
+        query['salary_range'] = salary_range
+    if job_type:
+        query['job_type'] = job_type
+    if mode_of_work:
+        query['mode_of_work'] = mode_of_work
+    if job_location:
+        query['job_location'] = job_location
+    if job_posted:
+        query['created_on'] = job_posted
+    if job_category:
+        query['job_category'] = job_category
+    if job_topics:
+        # Remove '#' if present and create a regex pattern
+        topics = [topic.strip('#') for topic in job_topics.split()]
+        topics_regex = '|'.join(topics)
+        query['job_topics'] = {"$regex": topics_regex, "$options": "i"}
+    print(job_posted,'when')
+    if job_posted:
+       start = datetime.now()-timedelta(days=int(job_posted))
+       end = datetime.now()
+       query['created_on'] = {"$gte":start,"$lt":end}
+    pipeline = [
+        {
+            '$lookup': {
+                'from': 'jobs_details', 
+                'localField': 'job_id', 
+                'foreignField': 'job_id', 
+                'as': 'job_details'
+            }
+        }, 
+        {
+                '$lookup': {
+                    'from': 'saved_jobs', 
+                    'localField': 'job_id', 
+                    'foreignField': 'job_id', 
+                    'as': 'saved_jobs_details'
+                }
+            }, 
+        {
+            '$project': {
+                '_id': 0,
+                'job_details._id': 0
+            }
+        }
+    ]
+    if searched_for:
+        pipeline.append({
+            "$match": {
+                "$or": [
+                    {"job_title": {"$regex": searched_for, "$options": "i"}},
+                    {"job_description": {"$regex": searched_for, "$options": "i"}},
+                    {"job_type": {"$regex": searched_for, "$options": "i"}},
+                    {"job_topics": {"$regex": searched_for, "$options": "i"}}
+                ]
+            }
+        })
+    elif query:
+        pipeline.append({"$match": query})
+
+    # Add the lookup and project stages
+    pipeline.extend([
+        {
+            '$lookup': {
+                'from': 'jobs_details',
+                'localField': 'job_id',
+                'foreignField': 'job_id',
+                'as': 'job_details'
+            }
+        },
+        {
+            '$project': {
+                '_id': 0,
+                'job_details._id': 0
+            }
+        }
+    ])
+    all_jobs = list(jobs_details_collection.aggregate(pipeline))
+    return jsonify({'all_jobs': all_jobs})
 
 @app.route("/jobs/tags", methods=['GET'])
 def get_most_used_tags():
