@@ -305,48 +305,72 @@ def handle_hirer_dashboard(user_id, user_name, onboarding_details):
     approved_by_admin = onboarding_details.get('approved_by_admin')
     if not approved_by_admin:
         return jsonify({"message": "admin approval needed"}), 200
+    print('stats')
+    pipeline = [
+            {
+                "$match": {"user_id": user_id}
+            },
+            {
+                '$lookup': {
+                    'from': 'candidate_job_application', 
+                    'localField': 'job_id', 
+                    'foreignField': 'job_id', 
+                    'as': 'applicants'
+                }
+            },
+            {
+            '$addFields': {
+                'applicants_count': {'$size': '$applicants'}
+            }
+           },
+           {'$sort':{'created_on':-1}},
+           {  
+        '$project': {
+            '_id': 0, 
+            'applicants._id':0,
+            #'applicants_count': 1,
+            #'applicants': 1
 
-    pageno = request.args.get("pageno", 1, type=int)
-    page_size = 7
-
-    # Fetch jobs posted by the hirer
-    all_jobs = list(jobs_details_collection.find({"user_id": user_id}, {"_id": 0}).skip((pageno - 1) * page_size).limit(page_size))
-    
-    # Fetch tasks posted by the hirer
-    all_tasks = list(tasks_details_collection.find({"user_id": user_id}, {"_id": 0}).skip((pageno - 1) * page_size).limit(page_size))
+        },
+    }
+        # Skip documents based on the calculated skip value  # Limit the number of documents per page
+        ]
+    all_jobs_wapplicants = list(jobs_details_collection.aggregate(pipeline))
+    all_tasks = list(tasks_details_collection.find({"user_id": user_id}, {"_id": 0}))
     
     all_published_jobs = list(jobs_details_collection.find({"user_id": user_id, "status": "published"}, {"_id": 0}))
     total_selected_candidates = list(candidate_job_application_collection.find({"hirer_id": user_id, "status": "Accepted"}, {"_id": 0}))
     applicants=list(candidate_job_application_collection.find({"hirer_id": user_id}, {"_id": 0}))
-
+    today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    tomorrow_start = today_start + timedelta(days=1)
+    applicants_today=list(candidate_job_application_collection.find({"hirer_id": user_id,
+            "applied_on": {
+                "$gte": today_start, 
+                "$lt": tomorrow_start
+            }}, {'_id': 0}))
     stats = {
         "total_jobs": jobs_details_collection.count_documents({"user_id": user_id}),
         "total_published_jobs": len(all_published_jobs),
         "total_selected_candidates": len(total_selected_candidates),
-        "applicants":len(applicants)
+        "applicants":len(applicants),
+        "applicants_today":len(applicants_today)
     }
-
-    total_elements = jobs_details_collection.count_documents({"user_id": user_id})
-    total_pages = calculate_total_pages(total_elements, page_size)
-
     return jsonify({
         "user_name": user_name,
         "onboarding_details": onboarding_details,
-        "all_jobs": all_jobs,
+        "all_jobs":all_jobs_wapplicants,
         "all_tasks": all_tasks,
-        "stats": stats,
-        "total_pages": total_pages,
-        "page_number": pageno
+        "stats": stats
     })
 
 def handle_jobseeker_dashboard(user_id, user_name, onboarding_details, resume_built):
-    if not resume_built:
-        return jsonify({"message": "please build your resume"}), 200
+    #if not resume_built:
+    #   return jsonify({"message": "please build your resume"}), 200
 
     resume_skills = get_resume_skills(user_id)
     regex_pattern = create_skills_regex_pattern(resume_skills)
 
-    pageno = request.args.get("pageno", 1, type=int)
+    pageno = request.args.get("page", 1, type=int)
     page_size = 7
 
     # Fetch all jobs matching the user's skills
@@ -357,7 +381,7 @@ def handle_jobseeker_dashboard(user_id, user_name, onboarding_details, resume_bu
             {'job_description': {'$regex': regex_pattern, '$options': 'i'}},
             {'job_topics': {'$regex': regex_pattern, '$options': 'i'}},
         ]
-    }, {"_id": 0}).skip((pageno - 1) * page_size).limit(page_size))
+    }, {"_id": 0}))
 
     # Fetch all tasks
     all_tasks = list(tasks_details_collection.find({
@@ -367,7 +391,7 @@ def handle_jobseeker_dashboard(user_id, user_name, onboarding_details, resume_bu
             {'task_description': {'$regex': regex_pattern, '$options': 'i'}},
             {'task_topics': {'$regex': regex_pattern, '$options': 'i'}},
         ]
-    }, {"_id": 0}).skip((pageno - 1) * page_size).limit(page_size))
+    }, {"_id": 0}))
 
     # Fetch saved jobs
     saved_jobs = list(saved_jobs_collection.find({"user_id": user_id}, {"_id": 0}))
@@ -391,8 +415,7 @@ def handle_jobseeker_dashboard(user_id, user_name, onboarding_details, resume_bu
             'job_details._id':0
         },
     },
-        # Skip documents based on the calculated skip value
-        {"$limit": page_size}  # Limit the number of documents per page
+    {"$sort":{"applied_on":-1}},
         ]
     applied_jobs = list(candidate_job_application_collection.aggregate(pipeline))
     #applied_jobs = list(candidate_job_application_collection.find({"user_id": user_id}, {"_id": 0}))
@@ -970,6 +993,17 @@ def resume_built(user):
     analyze_resume(user_id)
     return jsonify({"message":"resume is saved"}),200
 
+@app.route("/resume_save", methods = ['POST'], endpoint='resume_save')
+@newlogin_is_required
+@is_candidate
+def resume_save(user):
+    form_data = request.get_json(force=True) 
+    resume_html = form_data.get("resume_html")
+    user_id = user.get("user_id")
+    resume_details_collection.update_one({"user_id": user_id},{"$set": {"resume_html": resume_html}})
+    analyze_resume(user_id)
+    return jsonify({"message":"resume is saved"}),200
+
 @app.route('/resume_upload',methods = ['POST'], endpoint='resume_upload')
 @is_candidate
 @newlogin_is_required
@@ -1029,7 +1063,7 @@ def have_resume(user):
 @newlogin_is_required
 def rebuild_resume(user):
     user_id = user.get("user_id")
-    onboarding_details_collection.update_one({"user_id": user_id}, {"$set": {"phase": "1"}})
+    onboarding_details_collection.update_one({"user_id": user_id}, {"$set": {"phase": "1","build_status":"introduction","resume_built":False}})
     resume_details_collection.delete_one({"user_id": user_id})
     return jsonify({"message":"updated successfully"})
 
@@ -1375,9 +1409,11 @@ def apply_job(user,job_id):
                 "applied_on": datetime.now(),
                 "status": "Applied",
             }
+            if candidate_job_application_collection.find_one({"user_id": user_id, "job_id": job_id},{"_id": 0}):
+               return jsonify({"success":False, "message":"applied already"}),400
             candidate_job_application_collection.insert_one(job_apply_data)
             flash("Successfully Applied for the Job. Recruiters will get back to you soon, if you are a good fit.")
-            return redirect(f'/apply/job/{job_id}')
+            return jsonify({"success":True, "applied":True})
         else:
             abort(500,{"messages": f"Job with Job Id {job_id} doesn't exist! "})
     pipeline = [
@@ -1390,6 +1426,14 @@ def apply_job(user,job_id):
                         'as': 'user_details'
                     }
                 }, 
+                                {
+                    '$lookup': {
+                        'from': 'profile_details', 
+                        'localField': 'user_id', 
+                        'foreignField': 'user_id', 
+                        'as': 'company_details'
+                    }
+                },
                 {
                     '$project': {
                         '_id': 0,
@@ -1413,12 +1457,12 @@ def apply_job(user,job_id):
 @app.route("/status/job/<string:candidate_user_id>", methods=['POST'])
 @newlogin_is_required
 @is_hirer
-def change_job_status(candidate_user_id):
-    form_data = dict(request.form)
+def change_job_status(user,candidate_user_id):
+    form_data = request.get_json(force=True)
     status = form_data.get("status")
     job_id = form_data.get("job_id")
     candidate_job_application_collection.update_one({"job_id": job_id, 'user_id': candidate_user_id},{"$set": {"status": status} })
-    return redirect(f'/responses/job/{job_id}')
+    return {"success":True,"message":"status updated successfully"}
 
 
 @app.route('/responses/job/<string:job_id>', methods=['GET', 'POST'], endpoint="job_responses")
@@ -1469,9 +1513,9 @@ def job_responses(user,job_id):
             'user_details._id': 0,
             'candidate_details._id': 0,
         },
-    },
-        {"$skip": skip},  # Skip documents based on the calculated skip value
-        {"$limit": page_size}  # Limit the number of documents per page
+    },{
+        '$sort':{'applied_on':-1}
+    }
         ]
         all_responses = list(candidate_job_application_collection.aggregate(pipeline))
         return jsonify({"job_id":job_id, "all_responses":all_responses, "job_details":job_details, "total_pages":total_pages, "page_number":page_number})
@@ -2087,6 +2131,8 @@ def filter_jobs(user):
     job_type = request.args.get("job_type")
     job_posted=request.args.get("job_posted")
     job_category=request.args.get("job_category")
+    salary_from=request.args.get("salary_from")
+    salary_to=request.args.get("salary_to")
     print(request.args,'args')
     query = {}
     if job_title:
@@ -2110,11 +2156,15 @@ def filter_jobs(user):
         topics = [topic.strip('#') for topic in job_topics.split()]
         topics_regex = '|'.join(topics)
         query['job_topics'] = {"$regex": topics_regex, "$options": "i"}
-    print(job_posted,'when')
     if job_posted:
        start = datetime.now()-timedelta(days=int(job_posted))
        end = datetime.now()
        query['created_on'] = {"$gte":start,"$lt":end}
+    #if salary_from:
+     #   query['salary_from'] = {"$gte":int(0)}
+    if salary_from:
+        query['salary_from'] = {"$gte":int(salary_from)}
+
     pipeline = [
         {
             '$lookup': {
@@ -2122,6 +2172,14 @@ def filter_jobs(user):
                 'localField': 'job_id', 
                 'foreignField': 'job_id', 
                 'as': 'job_details'
+            }
+        }, 
+            {
+            '$lookup': {
+                'from': 'profile_details', 
+                'localField': 'user_id', 
+                'foreignField': 'user_id', 
+                'as': 'onboarding_details'
             }
         }, 
         {
@@ -2146,7 +2204,8 @@ def filter_jobs(user):
                     {"job_title": {"$regex": searched_for, "$options": "i"}},
                     {"job_description": {"$regex": searched_for, "$options": "i"}},
                     {"job_type": {"$regex": searched_for, "$options": "i"}},
-                    {"job_topics": {"$regex": searched_for, "$options": "i"}}
+                    {"job_topics": {"$regex": searched_for, "$options": "i"}},
+                    {"job_category": {"$regex": searched_for, "$options": "i"}}
                 ]
             }
         })
@@ -2191,6 +2250,8 @@ def ufilter_jobs():
     job_type = request.args.get("job_type")
     job_posted=request.args.get("job_posted")
     job_category=request.args.get("job_category")
+    salary_from=request.args.get("salary_from")
+    salary_to=request.args.get("salary_to")
     print(request.args,'args')
     query = {}
     if job_title:
@@ -2214,11 +2275,15 @@ def ufilter_jobs():
         topics = [topic.strip('#') for topic in job_topics.split()]
         topics_regex = '|'.join(topics)
         query['job_topics'] = {"$regex": topics_regex, "$options": "i"}
-    print(job_posted,'when')
+    print(salary_from,'when')
     if job_posted:
        start = datetime.now()-timedelta(days=int(job_posted))
        end = datetime.now()
        query['created_on'] = {"$gte":start,"$lt":end}
+    if salary_from:
+        query['salary_from'] = {"$gte":int(salary_from)}
+    if salary_to:
+        query['salary_to'] = {"$lt":int(salary_to)}
     pipeline = [
         {
             '$lookup': {
@@ -2226,6 +2291,14 @@ def ufilter_jobs():
                 'localField': 'job_id', 
                 'foreignField': 'job_id', 
                 'as': 'job_details'
+            }
+        }, 
+         {
+            '$lookup': {
+                'from': 'profile_details', 
+                'localField': 'user_id', 
+                'foreignField': 'user_id', 
+                'as': 'onboarding_details'
             }
         }, 
         {
@@ -2250,11 +2323,12 @@ def ufilter_jobs():
                     {"job_title": {"$regex": searched_for, "$options": "i"}},
                     {"job_description": {"$regex": searched_for, "$options": "i"}},
                     {"job_type": {"$regex": searched_for, "$options": "i"}},
-                    {"job_topics": {"$regex": searched_for, "$options": "i"}}
-                ]
+                    {"job_topics": {"$regex": searched_for, "$options": "i"}},
+                    {"job_category": {"$regex": searched_for, "$options": "i"}}
+                ],
             }
         })
-    elif query:
+    if query:
         pipeline.append({"$match": query})
 
     # Add the lookup and project stages
