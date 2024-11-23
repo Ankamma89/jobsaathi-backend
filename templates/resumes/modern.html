@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang='en'>
+
+<head>
+    <meta charset='UTF-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <title>Resume</title>
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            margin: 0;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+
+        .container {
+            background: #fff;
+            margin: 20px auto;
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 900px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            font-size: 28px;
+            text-align: center;
+            color: #222;
+            margin-bottom: 10px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .header p {
+            margin: 5px 0;
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        .section h2 {
+            font-size: 20px;
+            color: #007bff;
+            margin-bottom: 10px;
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 5px;
+        }
+
+        .skills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .skill {
+            display: flex;
+            flex-direction: column;
+            flex: 1 1 calc(50% - 15px);
+            /* Each skill block takes 50% width minus gap */
+            min-width: 200px;
+        }
+
+        .skill span {
+            font-size: 16px;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .progress {
+            height: 10px;
+            background: #ddd;
+            border-radius: 5px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress div {
+            height: 100%;
+            background: #007bff;
+            transition: width 0.3s ease;
+        }
+
+        .progress div:hover {
+            background: #0056b3;
+        }
+
+        .experience ul,
+        .education ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .experience ul li,
+        .education ul li {
+            margin-bottom: 8px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class='container'>
+        <div class='header'>
+            <h1>Jane Doe</h1>
+            <p>Email: jane.doe@example.com | Phone: (123) 456-7890</p>
+            <p>LinkedIn: linkedin.com/in/janedoe | Portfolio: janedoe.com</p>
+        </div>
+        <div class='section'> <h2>About</h2> <p>{{about}}</p> </div>
+        <div class='section'>
+            <h2>Skills</h2>
+            <div class="skills">
+                <div class='skill'>
+                    <span>JavaScript</span>
+                    <div class='progress'>
+                        <div style='width: 80%;'></div>
+                    </div>
+                </div>
+                <div class='skill'>
+                    <span>Python</span>
+                    <div class='progress'>
+                        <div style='width: 70%;'></div>
+                    </div>
+                </div>
+                <div class='skill'>
+                    <span>React</span>
+                    <div class='progress'>
+                        <div style='width: 75%;'></div>
+                    </div>
+                </div>
+                <div class='skill'>
+                    <span>Node.js</span>
+                    <div class='progress'>
+                        <div style='width: 65%;'></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class='section experience'>
+            <h2>Experience</h2>
+            <h3>Software Engineer</h3>
+            <p>XYZ Inc | 2019 - Present</p>
+            <ul>
+                <li>Developed dynamic web applications</li>
+                <li>Enhanced UI/UX designs</li>
+            </ul>
+        </div>
+        <div class='section education'>
+            <h2>Education</h2>
+            <h3>Bachelor's in Computer Science</h3>
+            <p>XYZ University, 2015-2019</p>
+        </div>
+    </div>
+</body>
+
+</html>

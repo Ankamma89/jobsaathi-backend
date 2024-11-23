@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title></title>
+    <style>
+        /* Fonts */
+        h1 {
+            font-family: 'Julius Sans One', sans-serif;
+            font-weight: 300;
+            font-size: 1.2cm;
+            transform: scale(1, 1.15);
+            margin: 0.2cm 0;
+            text-transform: uppercase;
+            color: #111;
+        }
+
+        h2 {
+            font-family: 'Archivo Narrow', sans-serif;
+            margin: 0.1cm 0;
+            color: white;
+        }
+
+        h3 {
+            font-family: 'Open Sans', sans-serif;
+        }
+
+        .smallText,
+        .smallText span,
+        .smallText p,
+        .smallText a {
+            font-family: 'Source Sans Pro', sans-serif;
+            font-size: 0.35cm;
+            text-align: justify;
+        }
+
+        .contactIcon {
+            width: 0.5cm;
+            text-align: center;
+        }
+
+        .white {
+            color: white;
+        }
+
+        .leftPanel,
+        .leftPanel a {
+            color: #bebebe;
+            text-decoration: none;
+            font-size: 0.38cm;
+        }
+
+        .bolded {
+            font-weight: bold;
+        }
+
+        /* Layout */
+        page {
+            background: white;
+            margin: 0 auto 0.5cm;
+        }
+
+        page[size='A4'] {
+            width: 21cm;
+            height: 29.7cm;
+        }
+
+        @page {
+            size: 21cm 29.7cm;
+            padding: 0;
+            margin: 0;
+        }
+
+        .container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+        }
+
+        .leftPanel {
+            width: 37%;
+            background-color: #484444;
+            padding: 0.7cm;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .rightPanel {
+            width: 63%;
+            padding: 0.7cm;
+        }
+
+        .leftPanel img {
+            width: 4cm;
+            height: 4cm;
+            margin-bottom: 0.7cm;
+            border-radius: 50%;
+            border: 0.15cm solid white;
+            object-fit: cover;
+        }
+
+        .details {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .yearsOfExperience {
+            width: 1.6cm;
+            display: flex;
+            justify-content: center;
+        }
+
+        .workExperience ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+
+        .workExperience li {
+            position: relative;
+            margin: 0;
+            padding-bottom: 0.5cm;
+            padding-left: 0.5cm;
+        }
+
+        .workExperience li:before {
+            background-color: #b8abab;
+            width: 0.05cm;
+            content: '';
+            position: absolute;
+            top: 0.1cm;
+            bottom: -0.2cm;
+            left: 0.05cm;
+        }
+
+        .workExperience li::after {
+            content: '';
+            position: absolute;
+        }
+    </style>
+</head>
+
+<body>
+    <page size='A4'>
+        <div class='container'>
+            <div class='leftPanel'>
+                <div class='details'>
+                    <div class='item bottomLineSeparator'>
+                        <h2>CONTACT</h2>
+                        <div class='smallText'>
+
+                        </div>
+                    </div>
+                    <div class='item bottomLineSeparator'>
+                        <h2></h2>
+                        <div class='smallText'>
+                            <div class='skill'>
+                            </div>
+                        </div>
+                    </div>
+                    <div class='item'>
+                        <h2>EDUCATION</h2>
+                        <div class='smallText'>
+                            <p></p>
+                        </div>
+                    </div>
+                    <div class='item'>
+                        <h2>ACHIEVEMENTS</h2>
+                        <div class='smallText'>
+                            <ul>
+                                <li></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class='item'>
+                        <h2>PROJECTS</h2>
+                        <div class='smallText'>
+                            <p class='bolded white'></p>
+                            <p></p>
+                            <p></p>
+                        </div>
+                        <div class='smallText'>
+                            <p class='bolded white'></p>
+                            <p></p>
+
+                        </div>
+                        <div class='smallText'>
+                            <p class='bolded white'></p>
+                            <p></p>
+
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class='rightPanel'>
+                <h1></h1>
+                <div class='smallText'>
+                    <h3></h3>
+                </div>
+                <div>
+                    <h2>About Me</h2>
+                    <div class='smallText'>
+                        <p>
+                        <p>
+                    </div>
+                </div>
+                <div class='workExperience'>
+                    <h2>Work Experience</h2>
+                    <ul>
+                        <li>
+                            <div class='jobPosition'><span class='bolded'></span></div>
+                            <div class='smallText'>
+                                <p></p>
+                            </div>
+                        </li>
+                        <li>
+                            <div class='jobPosition'><span class='bolded'></span></div>
+                            <div class='smallText'>
+                                <p>
+                                <p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </page>
+</body>
+
+</html>

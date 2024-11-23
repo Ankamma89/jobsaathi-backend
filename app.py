@@ -3,7 +3,7 @@ load_dotenv()  # Load environment variables from .env file
 from json import dumps
 from flask import Flask, json, request, render_template, redirect, abort, session, flash, make_response
 from client_secret import client_secret, initial_html
-from db import task_seen_by_collection, tasks_details_collection,user_details_collection, onboarding_details_collection, jobs_details_collection, candidate_job_application_collection,candidate_task_proposal_collection, chatbot_collection, resume_details_collection, profile_details_collection, saved_jobs_collection, chat_details_collection, connection_details_collection
+from db import task_seen_by_collection, tasks_details_collection,user_details_collection, onboarding_details_collection, jobs_details_collection, candidate_job_application_collection,candidate_task_proposal_collection, chatbot_collection, resume_details_collection, profile_details_collection, saved_jobs_collection,task_chat_details_collection, chat_details_collection, connection_details_collection, connection_task_details_collection,plans_collection
 from helpers import  query_update_billbot,get_resume_html_db, add_html_to_db, analyze_resume, upload_file_firebase, extract_text_pdf, outbound_messages, next_build_status, updated_build_status, text_to_html, calculate_total_pages, mbsambsasmbsa
 from jitsi import create_jwt
 import os
@@ -25,6 +25,12 @@ import pusher
 from flask_cors import CORS
 from collections import Counter
 import re
+import razorpay
+
+
+# Initialize Razorpay client
+razorpay_client = razorpay.Client(auth=(os.environ["RAZORPAY_ID"], os.environ["RAZORPAY_KEY"]))
+
   # Load environment variables from .env file
 
 
@@ -86,7 +92,7 @@ def get_user(token):
     if user_id is None:
         return redirect("/") 
     else:
-        current_user = user_details_collection.find_one({"user_id": user_id},{"_id": 0})
+        current_user = user_details_collection.find_one({"user_id": user_id},{"_id": 0,'password':0})
         return current_user
 
 def newlogin_is_required(function):
@@ -745,6 +751,31 @@ def profile_update(user):
     else:
         abort(500, {"message": f"DB Error: Profile Details for user_id {user_id} not found."})
 
+@app.route("/profile-update", methods=['GET', 'POST'], endpoint='profile_update_info')
+@newlogin_is_required
+@is_candidate
+def profile_update_info(user):
+    user_id = user.get("user_id")
+    purpose = user.get("role")
+    user=user_details_collection.find_one({"user_id":user_id},{"_id":0,"password":0})
+    if request.method == 'POST':
+        form_data = dict(request.form)
+        print(form_data,'profile')
+        name= form_data.get("name")
+        email= form_data.get("email")
+        user_details_collection.update_one({"user_id": user_id},{"$set": {"email":email,"name":name}})
+        profile_details_collection.d
+        profile_details_collection.update_one({"user_id": user_id},{"$set": {"name":name,"email":email}})
+        return jsonify({"message":"profile updated successfully"}),200
+    if profile_details := profile_details_collection.find_one({"user_id": user_id},{"_id": 0}):
+        if purpose == 'jobseeker':
+            return jsonify({ 'profile_details':profile_details, 'user_id':user_id}) 
+        elif purpose == 'hirer':
+            return jsonify({'profile_details':profile_details})
+        else:
+            abort(500, {"message" : "candidate or hirer not found in the records."})
+    else:
+        abort(500, {"message": f"DB Error: Profile Details for user_id {user_id} not found."})
 
 @app.route("/public/candidate/<string:user_id>", methods=['GET', 'POST'], endpoint='public_candidate_profile')
 def public_candidate_profile(user_id):
@@ -929,13 +960,17 @@ def chatbot(user):
                 messages = [{"user": "billbot","msg": "Hi, I am BillBot."}, {"user": "billbot", "msg": "Do you have a pre-built resume?"}]
             return jsonify({"messages":messages})
         elif phase == "2":
+            print(build_status,'build')
             messages = outbound_messages(build_status)
             nxt_build_status = next_build_status(build_status)
+            #resume_details_collection.update_one({"user_id": user_id},{"$set":{"resume_json": {"name":"rajesh"}}})
             # messages = [{"user":"billbot","msg": "Hi, The right side of your screen will display your resume. You can give me instruction to build it in the chat."},{"user":"billbot","msg": "You can give me information regarding your inroduction, skills, experiences, achievements and projects. I will create a professional resume for you!"}]
             if resume_details := resume_details_collection.find_one({"user_id": user_id},{"_id": 0}):
                 resume_html = resume_details.get("resume_html")
+                resume_json = resume_details.get("resume_json")
+                json_template = resume_details.get("json_template")
                 resume_built = True
-                return jsonify({"messages":messages, "resume_html":resume_html, "resume_built":resume_built, "nxt_build_status":nxt_build_status}) 
+                return jsonify({"messages":messages,"json_template":json_template, "resume_html":resume_html,"resume_json":resume_json, "resume_built":resume_built, "nxt_build_status":build_status}) 
             else:
                 abort(500,{"message":"Something went wrong! Contact ADMIN!"})
 
@@ -964,11 +999,13 @@ def resume_build(user):
     form_data = request.get_json(force=True)
     userMsg = form_data.get("msg")
     nxt_build_status = form_data.get("nxt_build_status")
+    print(nxt_build_status,'abcd')
     updated_build_status(user_id, nxt_build_status)
+    profile_details_collection.update_one({"user_id":user_id},{"$set":{nxt_build_status:userMsg}})
     nxt_build_status_ = next_build_status(nxt_build_status)
-    html_code = query_update_billbot(user_id, userMsg, nxt_build_status_)
+    html_code = query_update_billbot(user_id, userMsg, nxt_build_status)
     add_html_to_db(user_id, html_code)
-    return {"html_code" :str(html_code), "nxt_messages": outbound_messages(nxt_build_status), "nxt_build_status": nxt_build_status_}
+    return {"html_code" :str(html_code), "nxt_messages": outbound_messages(nxt_build_status_), "nxt_build_status": nxt_build_status_}
 
 @app.route("/current_build_status", methods = ['POST'], endpoint='current_build_status')
 @is_candidate
@@ -990,6 +1027,7 @@ def resume_built(user):
     user_id = user.get("user_id")
     onboarding_details_collection.update_one({"user_id": user_id},{"$set": {"resume_built": True}})
     resume_details_collection.update_one({"user_id": user_id},{"$set": {"resume_html": resume_html}})
+    updated_build_status(user_id,'endofchecklist')
     analyze_resume(user_id)
     return jsonify({"message":"resume is saved"}),200
 
@@ -1048,9 +1086,10 @@ def have_resume(user):
     user_id = user.get("user_id")
     onboarding_details_collection.update_one({"user_id": user_id}, {"$set": {"phase": "2"}})
     data=request.get_json(force=True)
-    resume_data = {"user_id": user_id,"resume_html":data.get('resumeFormat')}
+    print(data,'data')
+    resume_data = {"user_id": user_id,"resume_html":data.get('resumeFormat'),"json_template":data.get("json_template")}
     resume_details_collection.insert_one(resume_data)
-    resume_html = get_resume_html_db(user_id)
+    resume_html,template = get_resume_html_db(user_id)
     profile=profile_details_collection.find_one({"user_id":user_id})
     name=profile.get('name')
     statement="i am"+" "+name
@@ -1074,7 +1113,7 @@ def allresumes():
 
 @app.route("/all__jobs", methods = ['GET'], endpoint='all__jobs')
 def all__jobs():
-    jobs=list(jobs_details_collection.find({}, {'_id': 0}))
+    jobs=list(task_chat_details_collection.find({}, {'_id': 0}))
     return jsonify({"jobs":jobs})
 
 @app.route("/all-jobs", methods = ['GET'], endpoint='all_jobs')
@@ -1084,7 +1123,7 @@ def all_jobs():
 
 @app.route("/allusers", methods = ['GET'], endpoint='allusers')
 def allusers():
-    users=list(user_details_collection.find({}, {'_id': 0}))
+    users=list(user_details_collection.find({}, {'_id': 0,"password":0}))
     return jsonify({"users":users})
 
 @app.route("/all-chats", methods = ['GET'], endpoint='allchats')
@@ -1185,7 +1224,7 @@ def onboarding_hirer(user):
         else:
             onboarding_details = dict(request.form)
             purpose=''
-            if user_details := user_details_collection.find_one({"user_id": user_id},{"_id": 0}):
+            if user_details := user_details_collection.find_one({"user_id": user_id},{"_id": 0,'password':0}):
              if user_details.get('role')=='hirer':
                 purpose='hirer'
              onboarding_details['user_id'] = user_id
@@ -1228,7 +1267,7 @@ def onboarding_jobseeker(user):
             abort(401)
         else:
             onboarding_details = request.get_json(force=True)
-            if user_details := user_details_collection.find_one({"user_id": user_id},{"_id": 0}):
+            if user_details := user_details_collection.find_one({"user_id": user_id},{"_id": 0,'password':0}):
              if user_details.get('role')=='jobseeker':
                      purpose='jobseeker'
              if user_details.get('role')=='hirer':
@@ -1368,6 +1407,7 @@ def create_task(user):
     task_details['user_id'] = user_id
     task_details['task_id'] = task_id
     task_details['created_on'] = datetime.now()
+    task_details['budget']=int(task_details['budget'])
     tasks_details_collection.insert_one(task_details)
     return jsonify({"message":"task created successfully"}),200
     
@@ -1521,6 +1561,59 @@ def job_responses(user,job_id):
         return jsonify({"job_id":job_id, "all_responses":all_responses, "job_details":job_details, "total_pages":total_pages, "page_number":page_number})
     
 
+
+@app.route('/all-job-responses', methods=['GET', 'POST'], endpoint="all_job_responses")
+@newlogin_is_required
+@is_hirer
+@is_onboarded
+def all_job_responses(user):
+        pageno = request.args.get("pageno")
+        page_number = 1  # The page number you want to retrieve
+        if pageno is not None:
+            page_number = int(pageno)
+        page_size = 7   # Number of documents per page
+        total_elements = len(list(candidate_job_application_collection.find()))
+        total_pages = calculate_total_pages(total_elements, page_size)
+        skip = (page_number - 1) * page_size
+        pipeline = [
+            {
+                '$lookup': {
+                    'from': 'onboarding_details', 
+                    'localField': 'user_id', 
+                    'foreignField': 'user_id', 
+                    'as': 'candidate_details'
+                }
+            },
+            {
+                '$lookup': {
+                    'from': 'user_details', 
+                    'localField': 'user_id', 
+                    'foreignField': 'user_id', 
+                    'as': 'user_details'
+                }
+            },
+             {
+                '$lookup': {
+                    'from': 'resume', 
+                    'localField': 'user_id', 
+                    'foreignField': 'user_id', 
+                    'as': 'resume_details'
+                }
+            },
+           {
+        '$project': {
+            '_id': 0, 
+            'user_details._id': 0,
+            'candidate_details._id': 0,
+        },
+    },{
+        '$sort':{'applied_on':-1}
+    }
+        ]
+        all_responses = list(candidate_job_application_collection.aggregate(pipeline))
+        return jsonify({"all_responses":all_responses, "total_pages":total_pages, "page_number":page_number})
+    
+
 @app.route("/alltasks", methods = ['GET'], endpoint='alltasks')
 @newlogin_is_required
 def alltasks(user):
@@ -1548,9 +1641,18 @@ def alltasks(user):
             }
         }, 
         {
+            '$lookup': {
+                'from': 'candidate_task_proposal', 
+                'localField': 'task_id', 
+                'foreignField': 'task_id', 
+                'as': 'proposals'
+            }
+        }, 
+        {
             '$project': {
                 '_id': 0,
-                'task_details._id': 0
+                'task_details._id': 0,
+                'proposals._id':0
             }
         },
         {"$skip": skip},  # Skip documents based on the calculated skip value
@@ -1559,6 +1661,92 @@ def alltasks(user):
     all_tasks = list(tasks_details_collection.aggregate(pipeline))
     # return all_applied_jobs
     return jsonify({"user_name":user_name, "onboarding_details":onboarding_details, "all_tasks":all_tasks, "total_pages":total_pages,"page_number":page_number})
+
+@app.route("/filterTasks", methods=['GET'], endpoint="filter__tasks")
+@newlogin_is_required
+def filter_tasks(user):
+    user_id=user.get('user_id')
+    searched_for = request.args.get("search")
+    task_title=request.args.get("task_title")
+    budget_from=request.args.get("budget_from")
+    budget_to=request.args.get("budget_to")
+    category=request.args.get("category")
+    task_topics=request.args.get("task_topics")
+    print(budget_from,'argse')
+    query = {}
+    query['status'] = 'published'
+    if task_title:
+        query['task_title'] = {"$regex": task_title, "$options": "i"}
+    if budget_from:
+       query['budget'] = {"$gte":int(budget_from)}
+    if budget_to:
+       query['budget'] = {"$lt":int(budget_to)}
+    if budget_to and budget_from:
+        query['budget'] = {"$gte":int(budget_from),"$lt":int(budget_to)}
+    if category:
+        query['category'] = category
+    if task_topics:  # Get tags from query parameters, e.g., tags=#java&tags=#react
+            tags = [f"#{re.escape(tag.strip())}" for tag in task_topics.split(',')]
+            regex_pattern = '|'.join([f"{tag}" for tag in tags])
+            query ["task_topics"]= {"$regex": regex_pattern, "$options": "i"}
+            #query['task_topics']={'$regex': '#python', '$options': 'i'}
+
+    pipeline = [ {
+            '$lookup': {
+                'from': 'candidate_task_proposal', 
+                'localField': 'task_id', 
+                'foreignField': 'task_id', 
+                'as': 'proposals'
+            }
+        }, 
+        {
+            '$project': {
+                '_id': 0,
+                'proposals._id':0
+            }
+        },
+    ]
+    if searched_for:
+        pipeline.append({
+            "$match": {
+                "$or": [
+                    {"task_title": {"$regex": searched_for, "$options": "i"}},
+                    {"task_topics": {"$regex": searched_for, "$options": "i"}},
+                    {"task_description": {"$regex": searched_for, "$options": "i"}},
+                    {"task_category": {"$regex": searched_for, "$options": "i"}}
+                ]
+            }
+        })
+    if query:
+        print(query,'querying')
+        pipeline.append({"$match": query})
+    #elif query:
+     #   pipeline.append({"$match": query})
+
+    # Add the lookup and project stages
+    pipeline.extend([
+        {
+            '$project': {
+                '_id': 0,
+            }
+        }
+    ])
+    print(pipeline,'tasks')
+    all_tasks = list(tasks_details_collection.aggregate(pipeline))
+    #print(all_tasks,'tasks')
+    all_updated_tasks = []
+    for idx, task in enumerate(all_tasks):
+            applied = candidate_task_proposal_collection.find_one({"task_id": task.get("task_id"), "user_id": user_id}, {"_id": 0})
+            own = tasks_details_collection.find_one({"task_id": task.get("task_id"), "user_id": user_id}, {"_id": 0})
+            if applied:
+                  print(applied,'applied')
+                  pass
+            elif own:
+                  print(own,'own')
+                  pass
+            if not applied and not own:
+                  all_updated_tasks.append(task)
+    return jsonify({'all_tasks': all_updated_tasks})
 
 # View a Task details Faizan
 @app.route('/view/task/<string:task_id>', methods=['GET'], endpoint="view_task")
@@ -1573,19 +1761,111 @@ def view_task(user, task_id):
     if not task_details:
         return jsonify({"message": "Task not found"}), 404
     #Get Poster Details bu searching user_id to mongdb _id
-    poster_id = task_details.get("user_id")
-    poster_name = user_details_collection.find_one({"user_id": poster_id}, {"_id": 0})
+    hirer_id = task_details.get("user_id")
+    print(task_details,'hirerid')
+    poster_name = user_details_collection.find_one({"user_id": hirer_id}, {"_id": 0,'password':0})
     if not poster_name:
         return jsonify({"message": "Poster not found"}), 404
-    task_details["poster_user_name"] = poster_name.get("user_name")
+       # Fetch task details
+    task_pipeline = [
+        {"$match": {"task_id": str(task_id)}},
+        {
+            '$lookup': {
+                'from': 'onboarding_details', 
+                'localField': 'user_id', 
+                'foreignField': 'user_id', 
+                'as': 'user_details'
+            }
+        }, 
+            {
+            '$lookup': {
+                'from': 'user_details', 
+                'localField': 'user_id', 
+                'foreignField': 'user_id', 
+                'as': 'hirer_details'
+            }
+        },
+        {"$lookup": {
+        "from": "tasks_details",
+        "let": {"user_id": "$user_id"},
+        "pipeline": [
+            {"$match": {"$expr": {"$eq": ["$user_id", "$$user_id"]}}},
+            {"$group": {
+                "_id": "$user_id",
+                "total_tasks_posted": {"$sum": 1},
+                "total_spent": {"$sum": "$budget"}  # Assumes `cost` field in tasks_details_collection
+            }}
+        ],
+        "as": "user_task_summary"
+    }},
+        {
+        # Add average rating field to user_details by calculating from proposer_reviews
+        "$addFields": {
+            "hirer_details": {
+                "$map": {
+                    "input": "$hirer_details",
+                    "as": "user",
+                    "in": {
+                        "$mergeObjects": [
+                            "$$user",
+                            {
+                                "average_review": {
+                                    "$cond": {
+                                        "if": { "$gt": [{ "$size": { "$ifNull": ["$$user.hirer_reviews", []] } }, 0] },
+                                        "then": { 
+                                            "$avg": "$$user.hirer_reviews.stars" 
+                                        },
+                                        "else": None  # Set to None if there are no reviews
+                                    }
+                                },
+                                "total_reviews": { "$size": { "$ifNull": ["$$user.hirer_reviews", []] } },  # Count of reviews
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    },
+            {
+            '$project': {
+                '_id': 0,
+                'user_details._id': 0,
+                'hirer_details._id': 0
+            }
+        },
+    ]
     
-    task_seen_by_collection.update_one(
-        {"task_id": task_id},
-        {"$addToSet": {"seen_by": {"viewer_id": viewer_id, "viewer_name": viewer_name}}},
-        upsert=True
-    )
-    return jsonify({"task_details": task_details}), 200
+    task_details_ = list(tasks_details_collection.aggregate(task_pipeline))
+    applied=False
+    if hirer_id==viewer_id:
+       applied=True
+    proposal = candidate_task_proposal_collection.find_one({"task_id": task_id,"user_id":viewer_id}, {"_id": 0})
+    if proposal:
+       applied=True
+    print(applied,proposal,'pro')
+    task_details["applied"]=applied
+    for task in task_details_:
+        task["applied"] = applied
+        task["poster_user_name"] = poster_name.get("name")
+    task_seen_by_collection.update_one({"task_id": task_id}, {"$addToSet": {"seen_by": {"viewer_id": viewer_id, "viewer_name": viewer_name}}})
+    return jsonify({"task_details": task_details_}), 200
 
+@app.route('/update/task/<string:task_id>', methods=['POST'], endpoint="update_task")
+@newlogin_is_required
+def update_task(user, task_id):
+    viewer_name = user.get("name")
+    viewer_id = user.get("user_id")
+    onboarded = user.get("onboarded")
+    form_data = request.get_json(force=True)
+    status = form_data.get("status")
+    if not onboarded:
+        return jsonify({"message": "User not onboarded"}), 403
+    task_details = tasks_details_collection.find_one({"task_id": task_id}, {"_id": 0})
+    if not task_details:
+        return jsonify({"message": "Task not found"}), 404
+    #Get Poster Details bu searching user_id to mongdb _id
+    tasks_details_collection.update_one({"task_id": task_id}, {"$set": {"status": status}})
+    return jsonify({"task_details": task_details}), 200
 
 @app.route('/apply/task/<string:task_id>', methods=['GET', 'POST'], endpoint="apply_task")
 @newlogin_is_required
@@ -1648,12 +1928,47 @@ def apply_task(user,task_id):
                 'as': 'user_details'
             }
         }, 
+            {
+            '$lookup': {
+                'from': 'user_details', 
+                'localField': 'user_id', 
+                'foreignField': 'user_id', 
+                'as': 'hirer_details'
+            }
+        },
         {
+        # Add average rating field to user_details by calculating from proposer_reviews
+        "$addFields": {
+            "hirer_details": {
+                "$map": {
+                    "input": "$hirer_details",
+                    "as": "user",
+                    "in": {
+                        "$mergeObjects": [
+                            "$$user",
+                            {
+                                "average_review": {
+                                    "$cond": {
+                                        "if": { "$gt": [{ "$size": { "$ifNull": ["$$user.proposer_reviews", []] } }, 0] },
+                                        "then": { 
+                                            "$avg": "$$user.proposer_reviews.stars" 
+                                        },
+                                        "else": None  # Set to None if there are no reviews
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    },
+            {
             '$project': {
                 '_id': 0,
                 'user_details._id': 0
             }
-        }
+        },
     ]
     
     job_details = list(tasks_details_collection.aggregate(task_pipeline))
@@ -1682,7 +1997,36 @@ def get_tasks(user):
 @newlogin_is_required
 def get_tasks(user):
     user_id = user.get("user_id")
-    tasks = list(tasks_details_collection.find({"user_id": str(user_id)}))
+    #tasks = list(tasks_details_collection.find({"user_id": str(user_id)}))
+    pipeline = [
+            {
+                "$match": {"user_id": user_id}
+            },
+            {
+                '$lookup': {
+                    'from': 'candidate_task_proposal', 
+                    'localField': 'task_id', 
+                    'foreignField': 'task_id', 
+                    'as': 'proposals'
+                }
+            },
+            {
+                '$lookup': {
+                    'from': 'task_seen_by', 
+                    'localField': 'user_id', 
+                    'foreignField': 'user_id', 
+                    'as': 'views'
+                }
+            },
+           {
+        '$project': {
+            '_id': 0, 
+            'user_details._id': 0,
+            'candidate_details._id': 0,
+        },
+    } # Limit the number of documents per page
+        ]
+    tasks = list(tasks_details_collection.aggregate(pipeline))
     return jsonify({"tasks":tasks})
 
 
@@ -1691,20 +2035,58 @@ def get_tasks(user):
 @newlogin_is_required
 @is_onboarded
 def accept_proposal(user,task_id):
-    user_id = user.get("user_id")
+    form_data = request.get_json(force=True)
+    user_id =  form_data.get("proposer_id")
     proposal = candidate_task_proposal_collection.find_one({"task_id": task_id, "user_id": user_id},{"_id": 0})
+    print(proposal,'proposal')
     if proposal:
+        deposit=int(proposal.get("deposit"))
+        proposer_id=form_data.get("proposer_id")
+        hirer_id=user.get("user_id")
         candidate_task_proposal_collection.update_one({"task_id": task_id, "user_id": user_id}, {"$set": {"status": "Accepted"}})
+        chat_details = {
+            "hirer_id": user.get("user_id"),
+            "proposer_id": proposal.get("user_id"),
+            "task_id": task_id,
+            "sent_by": user.get("user_id"),
+            "sent_on": datetime.now(),
+            "msg": "your proposal has been accepted",
+            "seen":False,
+            "type":"msg"
+        }
+        task_chat_details_collection.insert_one(chat_details)
+        tasks_details_collection.update_one({"task_id":task_id},{"$set": {"status": "inProgress"}})
+        user_details_collection.update_one(
+    {"user_id": proposer_id},
+    {"$set": {"seller_lock": 0}}
+)
+        user_details_collection.update_one(
+        {"user_id": proposer_id},
+          {
+          # Set wallet to 0 if it doesn't exist
+        "$inc": {"seller_lock": deposit}  # Increment wallet by the budget amount
+         },
+           upsert=True  # Use upsert to ensure the user document is created if it doesn't exist
+          )
+        user_details_collection.update_one(
+        {"user_id": hirer_id},
+          {  # Set wallet to 0 if it doesn't exist
+        "$inc": {"buyer_lock": deposit}  # Increment wallet by the budget amount
+         },
+           upsert=True  # Use upsert to ensure the user document is created if it doesn't exist
+          )
         return jsonify({"message": "Proposal accepted successfully"}), 200
     else:
         return jsonify({"message": f"Proposal not found for user {user_id} and task {task_id}"}), 404
 
 #Reject Proposal for a task
+
 @app.route('/proposals/reject/<string:task_id>', methods=['POST'], endpoint="reject_proposal")
 @newlogin_is_required
 @is_onboarded
 def reject_proposal(user,task_id):
-    user_id = user.get("user_id")
+    form_data = request.get_json(force=True)
+    user_id = form_data.get("proposer_id")
     proposal = candidate_task_proposal_collection.find_one({"task_id": task_id, "user_id": user_id},{"_id": 0})
     if proposal:
         candidate_task_proposal_collection.update_one({"task_id": task_id, "user_id": user_id}, {"$set": {"status": "Rejected"}})
@@ -1713,26 +2095,160 @@ def reject_proposal(user,task_id):
         return jsonify({"message": f"Proposal not found for user {user_id} and task {task_id}"}), 404
 
 #Whitelist a proposal
-@app.route('/proposals/whitelist/<string:task_id>', methods=['POST'], endpoint="whitelist_proposal")
+@app.route('/proposals/workstream/<string:task_id>', methods=['POST'], endpoint="whitelist_proposal")
 @newlogin_is_required
 @is_onboarded
 def whitelist_proposal(user,task_id):
     user_id = user.get("user_id")
-    proposal = candidate_task_proposal_collection.find_one({"task_id": task_id, "user_id": user_id},{"_id": 0})
+    form_data = request.get_json(force=True)
+    candidate_id=form_data.get("proposer_id")
+    proposal = candidate_task_proposal_collection.find_one({"task_id": task_id,"user_id":candidate_id},{"_id": 0})
     if proposal:
-        candidate_task_proposal_collection.update_one({"task_id": task_id, "user_id": user_id}, {"$set": {"status": "Whitelisted"}})
+        candidate_task_proposal_collection.update_one({"task_id": task_id, "user_id": candidate_id}, {"$set": {"status": "workstream"}})
         return jsonify({"message": "Proposal whitelisted successfully"}), 200
     else:
-         return jsonify({"message": f"Proposal not found for user {user_id} and task {task_id}"})
+         return jsonify({"message": f"Proposal not found for user {candidate_id} and task {task_id}"})
 
+@app.route('/proposals/shortlist/<string:task_id>', methods=['POST'], endpoint="shortlist_proposal")
+@newlogin_is_required
+@is_onboarded
+def shortlist_proposal(user,task_id):
+    user_id = user.get("user_id")
+    form_data = request.get_json(force=True)
+    candidate_id=form_data.get("proposer_id")
+    proposal = candidate_task_proposal_collection.find_one({"task_id": task_id,"user_id":candidate_id},{"_id": 0})
+    if proposal:
+        candidate_task_proposal_collection.update_one({"task_id": task_id, "user_id": candidate_id}, {"$set": {"status": "shortlisted"}})
+        return jsonify({"message": "Proposal whitelisted successfully"}), 200
+    else:
+         return jsonify({"message": f"Proposal not found for user {candidate_id} and task {task_id}"})
 
+@app.route('/proposals/complete-request/<string:task_id>', methods=['POST'], endpoint="complete_request")
+@newlogin_is_required
+@is_onboarded
+def complete_request(user,task_id):
+    form_data = request.get_json(force=True)
+    user_id =  form_data.get("proposer_id")
+    proposal = candidate_task_proposal_collection.find_one({"task_id": task_id, "user_id": user_id},{"_id": 0})
+    print(proposal,'proposal')
+    if proposal:
+        candidate_task_proposal_collection.update_one({"task_id": task_id, "user_id": user_id}, {"$set": {"status": "Accepted"}})
+        chat_details = {
+            "hirer_id": proposal.get("hirer_id"),
+            "proposer_id": proposal.get("user_id"),
+            "task_id": task_id,
+            "sent_by": user.get("user_id"),
+            "sent_on": datetime.now(),
+            "msg": "i completed project",
+            "seen":False,
+            "type":"complete-request"
+        }
+        task_chat_details_collection.insert_one(chat_details)
+        return jsonify({"message": "Proposal accepted successfully"}), 200
+    else:
+        return jsonify({"message": f"Proposal not found for user {user_id} and task {task_id}"}), 404
+
+@app.route('/proposals/project-completed/<string:task_id>', methods=['POST'], endpoint="project_completed")
+@newlogin_is_required
+@is_onboarded
+def project_completed(user,task_id):
+    form_data = request.get_json(force=True)
+    user_id =  form_data.get("proposer_id")
+    hirer_id=user.get("user_id")
+    proposal = candidate_task_proposal_collection.find_one({"task_id": task_id, "user_id": user_id},{"_id": 0})
+    if proposal:
+        print(task_id,'proposal')
+        #candidate_task_proposal_collection.update_one({"task_id": task_id, "user_id": user_id}, {"$set": {"status": "Accepted"}})
+        task= tasks_details_collection.find_one({"task_id": task_id}, {"_id":0})
+        tasks_details_collection.update_one({"task_id": task_id}, {"$set": {"status": "Completed"}})
+        wallet_increase=int(task.get("budget"))-int(proposal.get("deposit"))
+        lock_decrease=int(proposal.get("deposit"))
+        user_details_collection.update_one({"user_id":user_id},{ "$inc":{"wallet":wallet_increase,"seller_lock":-lock_decrease}})
+        user_details_collection.update_one({"user_id":hirer_id},{ "$inc":{"buyer_lock":-lock_decrease}})
+        return jsonify({"message": "Proposal accepted successfully","task":task}), 200
+    else:
+        return jsonify({"message": f"Proposal not found for user {user_id} and task {task_id}"}), 404
+
+@app.route('/hirer/task-review/<string:task_id>', methods=['POST'], endpoint="task_review_hirer")
+@newlogin_is_required
+@is_onboarded
+def task_review_hirer(user,task_id):
+    form_data = request.get_json(force=True)
+    user_id =  form_data.get("proposer_id")
+    stars =  form_data.get("rating")
+    message =  form_data.get("text")
+    review={
+        "task_id":task_id,
+        "stars":stars,
+        "message":message,
+        "date":datetime.now()
+    }
+    user_details_collection.update_one({"user_id": user_id}, {"$push": {"proposer_reviews": review}})
+    tasks_details_collection.update_one({"task_id": task_id}, {"$set":{"proposer_review": review}})
+    proposal = candidate_task_proposal_collection.find_one({"task_id": task_id, "user_id": user_id},{"_id": 0})
+    print(proposal,'proposal')
+    if proposal:
+        chat_details = {
+            "hirer_id": proposal.get("hirer_id"),
+            "proposer_id": proposal.get("user_id"),
+            "task_id": task_id,
+            "sent_by": user.get("user_id"),
+            "sent_on": datetime.now(),
+            "msg": message,
+            "rating":stars,
+            "seen":False,
+            "type":"review"
+        }
+        task_chat_details_collection.insert_one(chat_details)
+        tasks_details_collection.update_one({"task_id": task_id, "user_id": user_id}, {"$set": {"status": "Completed"}})
+        return jsonify({"message": "Proposal accepted successfully"}), 200
+    else:
+        return jsonify({"message": f"Proposal not found for user {user_id} and task {task_id}"}), 404
+
+@app.route('/proposer/task-review/<string:task_id>', methods=['POST'], endpoint="task_review_proposer")
+@newlogin_is_required
+@is_onboarded
+def task_review_proposer(user,task_id):
+    form_data = request.get_json(force=True)
+    user_id =  form_data.get("hirer_id")
+    stars =  form_data.get("rating")
+    message =  form_data.get("text")
+    review={
+        "task_id":task_id,
+        "stars":stars,
+        "message":message,
+        "date":datetime.now()
+    }
+    user_details_collection.update_one({"user_id": user_id}, {"$push": {"hirer_reviews": review}})
+    tasks_details_collection.update_one({"task_id": task_id}, {"$set": {"hirer_review": review}})
+    proposal = candidate_task_proposal_collection.find_one({"task_id": task_id, "user_id": user.get("user_id")},{"_id": 0})
+    print(proposal,'proposal')
+    if proposal:
+        chat_details = {
+            "hirer_id": proposal.get("hirer_id"),
+            "proposer_id": proposal.get("user_id"),
+            "task_id": task_id,
+            "sent_by": user.get("user_id"),
+            "sent_on": datetime.now(),
+            "msg": message,
+            "rating":stars,
+            "seen":False,
+            "type":"review"
+        }
+        task_chat_details_collection.insert_one(chat_details)
+        tasks_details_collection.update_one({"task_id": task_id, "user_id": user_id}, {"$set": {"status": "Completed"}})
+        return jsonify({"message": "Proposal accepted successfully"}), 200
+    else:
+        return jsonify({"message": f"Proposal not found for user {user_id} and task {task_id}"}), 404
 
 @app.route('/proposals/task/<string:task_id>', methods=['GET', 'POST'], endpoint="task_responses")
 @newlogin_is_required
 @is_onboarded
 def task_responses(user,task_id):
-    if task_details := tasks_details_collection.find_one({"task_id": task_id},{"_id": 0, "task_title" :1, "mode_of_work": 1}):
+    if task_details := tasks_details_collection.find_one({"task_id": task_id},{"_id": 0}):
         pageno = request.args.get("pageno")
+        seen_count = task_seen_by_collection.count_documents({"task_id": task_id})
+        task_details['seen_count']=seen_count
         page_number = 1  # The page number you want to retrieve
         if pageno is not None:
             page_number = int(pageno)
@@ -1759,7 +2275,33 @@ def task_responses(user,task_id):
                     'foreignField': 'user_id', 
                     'as': 'user_details'
                 }
-            },
+            }, {
+        # Add average rating field to user_details by calculating from proposer_reviews
+        "$addFields": {
+            "user_details": {
+                "$map": {
+                    "input": "$user_details",
+                    "as": "user",
+                    "in": {
+                        "$mergeObjects": [
+                            "$$user",
+                            {
+                                "average_review": {
+                                    "$cond": {
+                                        "if": { "$gt": [{ "$size": { "$ifNull": ["$$user.proposer_reviews", []] } }, 0] },
+                                        "then": { 
+                                            "$avg": "$$user.proposer_reviews.stars" 
+                                        },
+                                        "else": None  # Set to None if there are no reviews
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    },
            {
         '$project': {
             '_id': 0, 
@@ -1918,6 +2460,127 @@ def all_chats(user):
     all_connections = list(connection_details_collection.aggregate(pipeline))
     return jsonify({"purpose":purpose, "all_connections":all_connections})
 
+@app.route("/task_chats", methods=['GET'], endpoint='all_task_chats')
+@newlogin_is_required
+def all_task_chats(user):
+    user_id = user.get("user_id")
+    purpose = user.get("role")
+    key = "hirer_id" if user_id == "hirer" else "proposer_id"
+    localField = "hirer_id" if purpose == "jobseeker" else "jobseeker_id"
+    localAs = "hirer_details" if purpose == "jobseeker" else "jobseeker_details"
+    pipeline = [
+         {
+                "$match": {
+                      "$or": [
+                          { "hirer_id": user_id },
+                         { "proposer_id": user_id }
+                            ]
+                }
+            },
+         {
+                '$lookup': {
+                    'from': 'onboarding_details', 
+                    'localField': 'hirer_id', 
+                    'foreignField': 'user_id', 
+                    'as': 'hirer_details'
+                }
+            },
+            {
+                '$lookup': {
+                    'from': 'onboarding_details', 
+                    'localField': 'proposer_id', 
+                    'foreignField': 'user_id', 
+                    'as': 'jobseeker_details'
+                }
+            },
+         {
+                '$lookup': {
+                    'from': 'tasks_details', 
+                    'localField': "task_id", 
+                    'foreignField': 'task_id', 
+                    'as': "task_details"
+                }
+            },
+         
+        {"$lookup": {
+            "from": "task_chat_details",
+            "let": { "connection_hirer_id":"$hirer_id","connection_jobseeker_id":"$jobseeker_id","connection_task_id": "$task_id" },
+            "pipeline": [
+                {
+                    "$match": {
+                        "$expr": {
+                            "$and": [
+                                #{"$ne":["$sent_by",purpose]},
+                                  { "$eq": ["$task_id", "$$connection_task_id"] },
+                                    { "$eq": ["$hirer_id", "$$connection_hirer_id"] },
+                                    { "$eq": ["$jobseeker_id", "$$connection_jobseeker_id"] },
+                                #{ "$eq": ["$seen", False] } 
+                            ]
+                        }
+                    }
+                }, 
+                 { "$sort": { "sent_on": -1 } },  # Sort by `sent_on` in descending order
+                    #{ "$group": {
+                     #   "_id": None,
+                     #   "last_unread_message": { "$first": "$$ROOT" },  # Take the most recent unread message
+                     #   "unread_count": { "$sum": 1 }  # Count all unseen messages
+                    #}},
+                 #{ "$sort": { "sent_on": -1 } },  # Sort messages in descending order of sent_on
+                    { "$group": {
+                        "_id": None,
+                        "all_messages": {
+                            "$push": {
+                                "msg": "$msg",
+                                "sent_on": "$sent_on",
+                                "seen": "$seen"
+                            }
+                        },  # Collect all messages with msg, sent_on, seen
+                        "last_message": {
+                            "$first": { "msg": "$msg", "sent_on": "$sent_on" }  # Get text and date of the last message
+                        },
+                        "unread_count":  {"$sum": {"$cond": [{"$and": [ { "$eq": ["$seen", False] }, { "$ne": ["$sent_by",user_id ] }] },1,0 ]}}
+                    }}
+            ],
+            "as": "unread_messages"
+        },
+         },
+          {
+            "$addFields": {
+                  "last_unread_message": {
+                    "$ifNull": [{ "$arrayElemAt": ["$unread_messages.last_unread_message", 0] }, None]
+                },
+                "last_message_date": {
+                    "$ifNull":[{ "$arrayElemAt": ["$unread_messages.last_message.sent_on", 0] }, datetime.min]  # Set to sent_on of last unread message
+                },
+      "mytask": {
+        "$cond": {
+          "if": {
+            "$or": [
+              { "$eq": ["$hirer_id", user_id] }
+            ]
+          },
+          "then": True,
+          "else": False
+        }
+      }
+            },
+        },
+           {
+        '$project': {
+            '_id': 0, 
+            f'{localAs}._id': 0,
+            'tasks_details._id': 0,
+        }
+    },
+      {
+            "$sort": {
+                "last_message_date": -1  # Sort by last unread message date in descending order
+            }
+        }
+    ]
+    all_connections = list(connection_task_details_collection.aggregate(pipeline))
+    return jsonify({"purpose":purpose, "all_connections":all_connections})
+
 @app.route("/unread", methods=['GET'], endpoint='unread_chats')
 @newlogin_is_required
 def unread_chats(user):
@@ -1936,7 +2599,19 @@ def specific_chat(user,incoming_user_id, job_id):
     user_id = user.get("user_id")
     purpose = user.get("role")
     if request.method == 'POST':
-        msg = request.get_json(force=True).get('msg')
+        link=''
+        file = request.files.get('file')
+        mimetype=''
+        subType=''
+        if file:
+           mimetype=file.mimetype
+           extension=mimetype.split("/")[1]
+           subType=mimetype.split("/")[0]
+           id=str(uuid.uuid4())
+           link=upload_file_firebase(file, f"{id}/.{extension}")
+        data=dict(request.form)
+        msg=data.get("msg")
+        type=data.get("type")
         chat_details = {
             "hirer_id": user_id if purpose == "hirer" else incoming_user_id,
             "jobseeker_id": user_id if purpose == "jobseeker" else incoming_user_id,
@@ -1944,16 +2619,25 @@ def specific_chat(user,incoming_user_id, job_id):
             "sent_by": purpose,
             "sent_on": datetime.now(),
             "msg": msg,
+            "link":link,
+            "type":type,
+            "subType":subType,
             "seen":False
         }
+        chat_data=chat_details
         chat_details_collection.insert_one(chat_details)
         channel_id = f"{user_id}_{incoming_user_id}_{job_id}" if purpose == "jobseeker" else f"{incoming_user_id}_{user_id}_{job_id}"
-        #pusher_client.trigger(channel_id, purpose, {'msg': msg})
+        chat_data["sent_on"]=datetime.now().isoformat()
+        chat_data.pop("_id")
+        print(chat_data,'chat_details',datetime.now().isoformat(),'inka')
+        pusher_client.trigger(channel_id, purpose, json.dumps(chat_data))
         return {"status": "saved"}
     hirer_id = incoming_user_id if purpose == "jobseeker" else user_id
     jobseeker_id = user_id if purpose == "jobseeker" else incoming_user_id
     if onboarding_details := onboarding_details_collection.find_one({"user_id": incoming_user_id},{"_id": 0}):
         name = onboarding_details.get("company_name") if purpose == "jobseeker" else onboarding_details.get("candidate_name")
+        incoming_user = user_details_collection.find_one({"user_id":incoming_user_id})
+        print(incoming_user,'incoming user')
         pipeline = [
             {"$match": {"hirer_id": hirer_id, "jobseeker_id": jobseeker_id, "job_id": job_id}},
             {"$project": {"_id": 0}},
@@ -1965,7 +2649,64 @@ def specific_chat(user,incoming_user_id, job_id):
         meet_details = {
             "meetLink": f"{url_}/meet/{channel_id}"
         }
-        return jsonify({'incoming_user_id':incoming_user_id, 'purpose':purpose, 'all_chats':all_chats, 'name':name, 'channel_id':channel_id, 'job_id':job_id, 'job_details':job_details, 'meet_details':meet_details})
+        return jsonify({'incoming_user_id':incoming_user_id,"status":incoming_user.get("status"),"last_seen":incoming_user.get("last_seen"), 'purpose':purpose, 'all_chats':all_chats, 'name':name, 'channel_id':channel_id, 'job_id':job_id, 'job_details':job_details, 'meet_details':meet_details})
+    else:
+        abort(500, {"message": "User Not Found!"})
+
+@app.route("/task_chat/<string:proposer_id>/<string:task_id>", methods=['GET', 'POST'], endpoint='specific_task_chat')
+@newlogin_is_required
+def specific_task_chat(user,proposer_id, task_id):
+    user_id = user.get("user_id")
+    purpose = user.get("role")
+    #print(task_id,'task_id')
+    task = tasks_details_collection.find_one({"task_id": task_id},{"_id": 0})
+    #print(task,task_id,'taske')
+    hirer_id=task.get("user_id")
+    proposal = candidate_task_proposal_collection.find_one({"task_id": task_id,"user_id":proposer_id,"hirer_id":hirer_id},{"_id": 0})
+    incoming_user_id=hirer_id if user_id==proposer_id else proposer_id
+    link=''
+    if request.method == 'POST':
+        file = request.files.get('file')
+        mimetype=file.mimetype
+        subType=mimetype.split("/")[1]
+        if file:
+           file_id=str(uuid.uuid4())
+           link=upload_file_firebase(file, f"{file_id}/.{subType}")
+        dicte=dict(request.form)
+        print(link,'deata')
+        data = dicte
+        msg=data.get("msg")
+        type = data.get("type")
+        subType = subType
+        chat_details = {
+            "hirer_id": hirer_id,
+            "proposer_id": proposer_id,
+            "task_id": task_id,
+            "sent_by": user_id,
+            "sent_on": datetime.now(),
+            "msg": msg,
+            "link":link,
+            "seen":False,
+            "type":type
+        }
+        task_chat_details_collection.insert_one(chat_details)
+        channel_id = f"{hirer_id}_{proposer_id}_{task_id}" if purpose == "jobseeker" else f"{incoming_user_id}_{user_id}_{task_id}"
+        #pusher_client.trigger(channel_id, purpose, {'msg': msg})
+        return {"status": "saved"}
+    if onboarding_details := onboarding_details_collection.find_one({"user_id": proposer_id},{"_id": 0}):
+        name = onboarding_details.get("company_name") if purpose == "jobseeker" else onboarding_details.get("candidate_name")
+        pipeline = [
+            {"$match": {"hirer_id": hirer_id, "proposer_id": proposer_id, "task_id": task_id}},
+            {"$project": {"_id": 0}},
+        ]
+        task_chat_details_collection.update_many({"sent_by": {"$ne":user_id},"proposer_id":proposer_id, "hirer_id": hirer_id, "task_id": task_id},{"$set": {"seen": True}})
+        all_chats = list(task_chat_details_collection.aggregate(pipeline))
+        channel_id = f"{user_id}_{incoming_user_id}_{task_id}" if purpose == "jobseeker" else f"{incoming_user_id}_{user_id}_{task_id}"
+        task_details = tasks_details_collection.find_one({"task_id": task_id},{"_id": 0})
+        meet_details = {
+            "meetLink": f"{url_}/meet/{channel_id}"
+        }
+        return jsonify({'incoming_user_id':incoming_user_id, 'purpose':purpose, 'all_chats':all_chats,'proposal':proposal, 'name':name, 'channel_id':channel_id, 'task_id':task_id, 'task_details':task_details, 'meet_details':meet_details})
     else:
         abort(500, {"message": "User Not Found!"})
 
@@ -1990,11 +2731,46 @@ def initiate_chat(user,jobseeker_id, job_id):
             abort(500, {"message": "Either job_id or jobseeker_id is wrong!"})
     return jsonify({"message":"initiated"}),200
 
+@app.route("/initiate_workstream/<string:proposer_id>/<string:task_id>", methods =['GET'], endpoint="initiate_workstream")
+@newlogin_is_required
+def initiate_workstream(user,proposer_id, task_id):
+    user_id = user.get("user_id")
+    print(user_id,proposer_id,'connectione')
+    if connection_details := connection_task_details_collection.find_one({"proposer_id": proposer_id, "hirer_id": user_id,"task_id":task_id},{"_id": 0}):
+        pass
+    else:
+        if _ := candidate_task_proposal_collection.find_one({"hirer_id":user_id, "user_id": proposer_id, "task_id": task_id},{"_id": 0}):
+            connection_details = {
+            "created_on": datetime.now(),
+            "hirer_id": user_id,
+            "proposer_id": proposer_id,
+            "task_id": task_id
+            }
+            print('connection')
+            connection_task_details_collection.insert_one(connection_details)
+            proposal=candidate_task_proposal_collection.find_one_and_update({"hirer_id": user_id, "user_id": proposer_id, "task_id": task_id},{"$set": {"workstream_initiated": True}})
+            print(proposal,'proposal')
+            chat_details = {
+            "hirer_id": user_id,
+            "proposer_id": proposer_id,
+            "task_id": task_id,
+            "sent_by": proposer_id,
+            "sent_on": datetime.now(),
+            "msg": proposal.get("message"),
+            "seen":False,
+            "type":'proposal',
+            "proposal":proposal
+             }
+            task_chat_details_collection.insert_one(chat_details)
+        else:
+            abort(500, {"message": "Either job_id or jobseeker_id is wrong!"})
+    return jsonify({"message":"initiated"}),200
+
 ###### FAIZAN #####
 
 #Function to get user by id    
 def get_user_by_id(user_id):
-    return user_details_collection.find_one({"user_id": user_id}, {"_id": 0})
+    return user_details_collection.find_one({"user_id": user_id}, {"_id": 0,'password':0})
 #Function to verify user token 
 def verify_token(token):
     try:
@@ -2209,7 +2985,8 @@ def filter_jobs(user):
                 ]
             }
         })
-    elif query:
+
+    if query:
         pipeline.append({"$match": query})
 
     # Add the lookup and project stages
@@ -2457,3 +3234,190 @@ def get_most_used_job_tags():
 #         }
 #     }
 # ]
+
+@app.route('/create_order', methods=['POST'])
+def create_order():
+    data = request.get_json()
+
+    amount = int(data.get('amount', 0))
+    
+    if amount <= 0:
+        return jsonify({"error": "Invalid amount"}), 400
+
+    # Create Razorpay order
+    order = razorpay_client.order.create(dict(
+        amount=amount * 100,  # Amount in paise (multiply by 100)
+        currency="INR",
+        payment_capture="1"  # 1 means automatic payment capture
+    ))
+
+    return jsonify({
+        'order_id': order['id'],
+        'currency': order['currency'],
+        'amount': order['amount']
+    })
+
+@app.route('/api/save-bank-details', methods=['POST'], endpoint="save_bank_details")
+@newlogin_is_required
+def save_bank_details(user):
+    # Extract the bank details from the request
+    data = request.get_json()
+    user_id = user.get('user_id')
+    bank_name = data.get('bankName')
+    account_number = data.get('accountNumber')
+    ifsc_code = data.get('ifscCode')
+    bank_address = data.get('bankAddress')
+    
+    # Basic validation
+    if not user_id or not bank_name or not account_number or not ifsc_code or not bank_address:
+        return jsonify({"message": "All fields are required."}), 400
+
+    # You can add more validations here (e.g., validating account number format, IFSC code format)
+    
+    # Create the bank details document
+    bank_details = {
+        "user_id": user_id,
+        "bank_name": bank_name,
+        "account_number": account_number,
+        "ifsc_code": ifsc_code,
+        "bank_address": bank_address
+    }
+
+    try:
+        # Insert the bank details into MongoDB
+        user_details_collection.update_one({"user_id":user_id},{"$set":{'bank_details':bank_details}})
+        return jsonify({"message": "Bank details saved successfully!"}), 200
+    except Exception as e:
+        return jsonify({"message": "Error saving bank details", "error": str(e)}), 500
+
+@app.route('/api/delete-bank-details', methods=['GET'], endpoint="delete_bank_details")
+@newlogin_is_required
+def delete_bank_details(user):
+    user_id = user.get('user_id')
+    # Create the bank details document
+
+    try:
+        # Insert the bank details into MongoDB
+        user_details_collection.update_one({"user_id":user_id},{"$set":{'bank_details':''}})
+        return jsonify({"message": "Bank details saved successfully!"}), 200
+    except Exception as e:
+        return jsonify({"message": "Error saving bank details", "error": str(e)}), 500
+
+@app.route('/user/online', methods=['POST'],endpoint='mark_online')
+@newlogin_is_required
+def mark_online(user):
+    """Mark a user as online and notify clients."""
+    user_id = user.get('user_id')
+    if not user_id:
+        return jsonify({"error": "User ID is required"}), 400
+
+    # Update user's status in the database
+    user_details_collection.update_one(
+        {"user_id": user_id},
+        {"$set": {"status": "online", "last_seen": datetime.now()}},
+        upsert=True
+    )
+
+    # Notify via Pusher
+    pusher_client.trigger(
+        'user-status-channel',
+        'status-changed',
+        {'user_id': user_id, 'status': 'online'}
+    )
+
+    return jsonify({"message": f"User {user_id} marked as online"}), 200
+
+@app.route('/user/offline', methods=['POST'],endpoint='mark_offline')
+@newlogin_is_required
+def mark_offline(user):
+    """Mark a user as offline and notify clients."""
+    user_id = user.get('user_id')
+    if not user_id:
+        return jsonify({"error": "User ID is required"}), 400
+    # Update user's status in the database
+    user_details_collection.update_one(
+        {"user_id": user_id},
+        {"$set": {"status": "offline", "last_seen": datetime.now()}}
+    )
+    # Notify via Pusher
+    pusher_client.trigger(
+        'user-status-channel',
+        'status-changed',
+        {'user_id': user_id, 'status': 'offline'}
+    )
+
+    return jsonify({"message": f"User {user_id} marked as offline"}), 200
+
+@app.route('/users/typing', methods=['POST'],endpoint='user_typing')
+@newlogin_is_required
+def user_typing(user):
+    """
+    Notify that a user is typing.
+    """
+    user_id=user.get("user_id")
+    purpose=user.get("role")
+    incoming_user_id = request.json.get('incoming_user_id')
+    job_id = request.json.get('job_id')
+    is_typing = request.json.get('is_typing')  # True or False
+    channel_id= f"{user_id}_{incoming_user_id}_{job_id}" if purpose == "jobseeker" else f"{incoming_user_id}_{user_id}_{job_id}"
+    print(channel_id,'channel_id',user,purpose)
+    if not user_id or not channel_id or is_typing is None:
+        return jsonify({"error": "Invalid payload"}), 400
+
+    # Broadcast typing status via Pusher
+    pusher_client.trigger(
+        channel_id,
+        "typing",
+        {
+            "user_id": user_id,
+            "is_typing": is_typing,
+        }
+    )
+
+    return jsonify({"message": "Typing status broadcasted"}), 200
+
+@app.route('/plans', methods=['GET'])
+def get_plans():
+    """
+    Fetch all available subscription plans.
+    """
+    all_plans = list(plans_collection.find({}, {"_id": 1, "name": 1, "price": 1, "features": 1}))
+    return jsonify(all_plans), 200
+
+@app.route('/upgrade', methods=['POST'])
+def upgrade_plan():
+    """
+    Upgrade a hirer's subscription plan.
+    """
+    user_id = request.json.get('user_id')
+    plan_id = request.json.get('plan_id')
+
+    if not user_id or not plan_id:
+        return jsonify({"error": "User ID and Plan ID are required"}), 400
+
+    # Verify the plan exists
+    plan = plans_collection.find_one({"_id": plan_id})
+    if not plan:
+        return jsonify({"error": "Plan not found"}), 404
+
+    # Update the user's subscription
+    user_details_collection.update_one(
+        {"_id": user_id},
+        {"$set": {"subscription": plan_id, "job_limit": plan["job_limit"]}},
+        upsert=True
+    )
+
+    return jsonify({"message": f"User {user_id} upgraded to {plan['name']} plan"}), 200
+
+@app.route('/user/<user_id>', methods=['GET'])
+def get_user_subscription(user_id):
+    """
+    Fetch the user's subscription plan details.
+    """
+    user = user_details_collection.find_one({"_id": user_id}, {"_id": 0, "subscription": 1})
+    plan = plans_collection.find_one({"_id":user.get("subscription")})
+    jobs=jobs_details_collection.find({"user_id":user_id})
+    plan["job_count"]=len(list(jobs))
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    return jsonify({"user":user,"plan":plan}), 200

@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Resume for Rajesh</title>
+    <style>
+        /* Fonts */
+        h1 {
+            font-family: 'Julius Sans One', sans-serif;
+            font-weight: 300;
+            font-size: 1.2cm;
+            transform: scale(1, 1.15);
+            margin: 0.2cm 0;
+            text-transform: uppercase;
+            color: #111;
+        }
+
+        h2 {
+            font-family: 'Archivo Narrow', sans-serif;
+            margin: 0.1cm 0;
+            color: white;
+        }
+
+        h3 {
+            font-family: 'Open Sans', sans-serif;
+        }
+
+        .smallText,
+        .smallText span,
+        .smallText p,
+        .smallText a {
+            font-family: 'Source Sans Pro', sans-serif;
+            font-size: 0.35cm;
+            text-align: justify;
+        }
+
+        .contactIcon {
+            width: 0.5cm;
+            text-align: center;
+        }
+
+        .white {
+            color: white;
+        }
+
+        .leftPanel,
+        .leftPanel a {
+            color: #bebebe;
+            text-decoration: none;
+            font-size: 0.38cm;
+        }
+
+        .bolded {
+            font-weight: bold;
+        }
+
+        /* Layout */
+        page {
+            background: white;
+            margin: 0 auto 0.5cm;
+        }
+
+        page[size='A4'] {
+            width: 21cm;
+            height: 29.7cm;
+        }
+
+        @page {
+            size: 21cm 29.7cm;
+            padding: 0;
+            margin: 0;
+        }
+
+        .container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+        }
+
+        .leftPanel {
+            width: 37%;
+            background-color: #484444;
+            padding: 0.7cm;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .rightPanel {
+            width: 63%;
+            padding: 0.7cm;
+        }
+
+        .leftPanel img {
+            width: 4cm;
+            height: 4cm;
+            margin-bottom: 0.7cm;
+            border-radius: 50%;
+            border: 0.15cm solid white;
+            object-fit: cover;
+        }
+
+        .details {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .yearsOfExperience {
+            width: 1.6cm;
+            display: flex;
+            justify-content: center;
+        }
+
+        .workExperience ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+
+        .workExperience li {
+            position: relative;
+            margin: 0;
+            padding-bottom: 0.5cm;
+            padding-left: 0.5cm;
+        }
+
+        .workExperience li:before {
+            background-color: #b8abab;
+            width: 0.05cm;
+            content: '';
+            position: absolute;
+            top: 0.1cm;
+            bottom: -0.2cm;
+            left: 0.05cm;
+        }
+
+        .workExperience li::after {
+            content: '';
+            position: absolute;
+        }
+    </style>
+</head>
+
+<body>
+    <page size='A4'>
+        <div class='container'>
+            <div class='leftPanel'>
+                <div class='details'>
+                    <div class='item bottomLineSeparator'>
+                        <h2>CONTACT</h2>
+                        <div class='smallText'>
+                            <p><i class='fa fa-phone contactIcon'></i> (+91) 777 777 7777</p>
+                            <p><i class='fa fa-envelope contactIcon'></i> <a
+                                    href='mailto:rajeshmn47@gmail.com'>rajeshmn47@gmail.com</a></p>
+                            <p><i class='fa fa-map-marker contactIcon'></i> New York, USA</p>
+                            <p><span
+                                    style='color: white; font-family: Archivo Narrow, sans-serif; font-size: inherit; font-weight: inherit;'>SKILLS</span><br><i
+                                    class='fa fa-linkedin contactIcon'></i></p>
+                        </div>
+                    </div>
+                    <div class='item bottomLineSeparator'>
+                        <div class='smallText'>
+                            <div class='skill'>
+                                <div>Word 3&nbsp;<span style='font-family: Inter;'>years</span></div>
+                            </div>
+                            <div class='skill'>
+                                <div>Communication 8&nbsp;<span style='font-family: Inter;'>years</span></div>
+                            </div>
+                            <div class='skill'>
+                                <div>Teamwork 10&nbsp;<span style='font-family: Inter;'>years</span></div>
+                            </div>
+                            <div class='skill'>
+                                <div>React 4&nbsp;<span style='font-family: Inter;'>years</span></div>
+                            </div>
+                            <div class='skill'>
+                                <div>Angular 4&nbsp;<span style='font-family: Inter;'>years</span></div>
+                            </div>
+                            <div class='skill'>
+                                <div>AI 1&nbsp;<span style='font-family: Inter;'>year</span></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class='item'>
+                        <h2>EDUCATION</h2>
+                        <div class='smallText'>
+                            <p class='bolded white'>Bachelor of Economics</p>
+                            <p>The University of Sydney</p>
+                            <p>2010 - 2014</p>
+                        </div>
+                    </div>
+                    <div class='item'>
+                        <h2>ACHIEVEMENTS</h2>
+                        <div class='smallText'>
+                            <ul>
+                                <li>Created AI-based job portal called Job Saathi in Python</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class='item'>
+                        <h2>PROJECTS</h2>
+                        <div class='smallText'>
+                            <p class='bolded white'>Anti-Money Laundering Software</p>
+                            <p>Transvision Solutions</p>
+                            <p>Jan 2022 - Present</p>
+                            <p>I am responsible for designing and developing anti-money laundering software solutions
+                                for our clients. I work closely with the AML team to ensure the software meets all
+                                regulatory requirements and effectively detects and prevents financial crimes.</p>
+                        </div>
+                        <div class='smallText'>
+                            <p class='bolded white'>Software Solutions for Various Clients</p>
+                            <p>Jun 2020 - Dec 2021</p>
+                            <p>As a software engineer, I developed software solutions for various clients in different
+                                industries. I gained experience in full-stack development and worked with a variety of
+                                programming languages and technologies.</p>
+                        </div>
+                        <div class='smallText'>
+                            <p class='bolded white'>Job Saathi</p>
+                            <p>Python</p>
+                            <p>Feb 2019 - May 2020</p>
+                            <p>I created an AI-based job portal called Job Saathi using Python. This project helped job
+                                seekers find suitable jobs and helped employers find the right candidates for their
+                                organizations.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class='rightPanel'>
+                <h1>Rajesh</h1>
+                <div class='smallText'>
+                    <h3>Software Engineer</h3>
+                </div>
+                <div>
+                    <h2>About Me</h2>
+                    <div class='smallText'>
+                        <p>I am a software engineer with 4 years of experience, specializing in anti-money laundering
+                            software. I am skilled in React and Angular and passionate about creating efficient and
+                            secure software solutions.</p>
+                    </div>
+                </div>
+                <div class='workExperience'>
+                    <h2>Work Experience</h2>
+                    <ul>
+                        <li>
+                            <div class='jobPosition'><span class='bolded'>Software Engineer</span><span>Jan 2022 -
+                                    Present</span></div>
+                            <div class='smallText'>
+                                <p>I am responsible for designing and developing anti-money laundering software
+                                    solutions for our clients. I work closely with the AML team to ensure the software
+                                    meets all regulatory requirements and effectively detects and prevents financial
+                                    crimes.</p>
+                            </div>
+                        </li>
+                        <li>
+                            <div class='jobPosition'><span class='bolded'>Software Engineer</span><span>Jun 2020 - Dec
+                                    2021</span></div>
+                            <div class='smallText'>
+                                <p>As a software engineer, I developed software solutions for various clients in
+                                    different industries. I gained experience in full-stack development and worked with
+                                    a variety of programming languages and technologies.</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </page>
+</body>
+</html>
