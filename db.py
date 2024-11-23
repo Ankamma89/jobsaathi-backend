@@ -32,4 +32,7 @@ connection_task_details_collection = db_client['connection_task_details']
 task_chat_details_collection = db_client['task_chat_details']
 task_seen_by_collection = db_client['task_seen_by']
 plans_collection = db_client['plans_details']
+<<<<<<< HEAD
 
+=======
+>>>>>>> de5b879670d8118053ea1bbc48d6b112ffca15f8
