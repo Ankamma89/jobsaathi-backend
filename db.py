@@ -3,7 +3,7 @@ import pymongo
 
 ENVIRONMENT = os.environ["ENVIRONMENT"]
 if ENVIRONMENT == "local":
-    connection_string = "mongodb://localhost:27017"
+    connection_string = "mongodb://localhost:27017/jobsaathinew-prod"
     DB_NAME = "jobsaathinew-prod"
 else:    
     MONGO_CLUSTER = os.environ["MONGO_URI"]
@@ -28,4 +28,8 @@ chatbot_collection = db_client['chatbot']
 profile_details_collection = db_client['profile_details']
 chat_details_collection = db_client['chat_details']
 connection_details_collection = db_client['connection_details']
+connection_task_details_collection = db_client['connection_task_details']
+task_chat_details_collection = db_client['task_chat_details']
 task_seen_by_collection = db_client['task_seen_by']
+plans_collection = db_client['plans_details']
+
