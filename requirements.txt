@@ -2,6 +2,7 @@ Flask==2.0.1
 pymongo[srv]==4.3.3
 firebase==3.0.1
 pyjwt
+gunicorn
 python-dotenv
 gcloud==0.18.3
 sseclient==0.0.27
