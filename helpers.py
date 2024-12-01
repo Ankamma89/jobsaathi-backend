@@ -52,6 +52,7 @@ Analyze the instruction and update only the relevant sections in the JSON templa
 
 
 skills_analyze_template = """You are a chatbot who helps people to build their resume/portfolio. This is the text of the portfolio {html}. Analyze the text properly and find all the skills of the person from the resume and return me only the skills of the candidate in comma seperated formated.
+Return the skills as a **comma-separated list**, without including any extra information, explanations, or context. Example format: "Skill1, Skill2, Skill3".
 """
 prompt = PromptTemplate(template=template, input_variables=["json", "statement","profile"])
 llm_chain = LLMChain(prompt=prompt, llm=llm)
@@ -85,6 +86,10 @@ def add_html_to_db(user_id, json):
     print(json,'json')
     resume_details_collection.update_one({"user_id": user_id},{"$set": {"resume_json": json}})
 
+def add_realhtml_to_db(user_id, html):
+    print(html,'html')
+    resume_details_collection.update_one({"user_id": user_id},{"$set": {"resume_html": html}})
+
 def analyze_resume(user_id, text=False):
     if not text:
         if resume_details := resume_details_collection.find_one({"user_id": user_id},{"_id": 0}):
@@ -97,6 +102,7 @@ def analyze_resume(user_id, text=False):
         else:
             return
     else:
+        print(text,'text')
         skills = skills_analyze_llm_chain.run(text) 
         print(skills)
         skills = skills.strip()
@@ -113,6 +119,7 @@ def extract_text_pdf(path):
 def upload_file_firebase(obj, path):
     storage.child(path).put(obj)
     link = storage.child(path).get_url(None)
+    print(link,'link')
     return link
 
 resume_question_template = """I have asked a person whether he/she has a portfolio/resume or not.{statement} is the person's reponse. Analyse the statement and return me 'yes' if he has a resume and 'no' if he doesn't have one and if the response is something weird like not a clear cut yes or no return me 'weird'

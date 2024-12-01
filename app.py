@@ -3,8 +3,8 @@ load_dotenv()  # Load environment variables from .env file
 from json import dumps
 from flask import Flask, json, request, render_template, redirect, abort, session, flash, make_response
 from client_secret import client_secret, initial_html
-from db import task_seen_by_collection, tasks_details_collection,user_details_collection, onboarding_details_collection, jobs_details_collection, candidate_job_application_collection,candidate_task_proposal_collection, chatbot_collection, resume_details_collection, profile_details_collection, saved_jobs_collection,task_chat_details_collection, chat_details_collection, connection_details_collection, connection_task_details_collection,plans_collection
-from helpers import  query_update_billbot,get_resume_html_db, add_html_to_db, analyze_resume, upload_file_firebase, extract_text_pdf, outbound_messages, next_build_status, updated_build_status, text_to_html, calculate_total_pages, mbsambsasmbsa
+from db import task_seen_by_collection, tasks_details_collection,user_details_collection, onboarding_details_collection, jobs_details_collection, candidate_job_application_collection,candidate_task_proposal_collection, chatbot_collection, resume_details_collection, profile_details_collection, saved_jobs_collection,task_chat_details_collection, chat_details_collection, connection_details_collection, connection_task_details_collection,plans_collection,notification_collection
+from helpers import  query_update_billbot,get_resume_html_db, add_html_to_db,add_realhtml_to_db, analyze_resume, upload_file_firebase, extract_text_pdf, outbound_messages, next_build_status, updated_build_status, text_to_html, calculate_total_pages, mbsambsasmbsa
 from jitsi import create_jwt
 import os
 from flask import jsonify
@@ -326,7 +326,7 @@ def handle_hirer_dashboard(user_id, user_name, onboarding_details):
             },
             {
             '$addFields': {
-                'applicants_count': {'$size': '$applicants'}
+                'applicants_count': {'$size': '$applicants'},
             }
            },
            {'$sort':{'created_on':-1}},
@@ -380,24 +380,10 @@ def handle_jobseeker_dashboard(user_id, user_name, onboarding_details, resume_bu
     page_size = 7
 
     # Fetch all jobs matching the user's skills
-    all_jobs = list(jobs_details_collection.find({
-        'status': 'published',
-        '$or': [
-            {'job_title': {'$regex': regex_pattern, '$options': 'i'}},
-            {'job_description': {'$regex': regex_pattern, '$options': 'i'}},
-            {'job_topics': {'$regex': regex_pattern, '$options': 'i'}},
-        ]
-    }, {"_id": 0}))
+    all_jobs = ''
 
     # Fetch all tasks
-    all_tasks = list(tasks_details_collection.find({
-        'status': 'published',
-        '$or': [
-            {'task_title': {'$regex': regex_pattern, '$options': 'i'}},
-            {'task_description': {'$regex': regex_pattern, '$options': 'i'}},
-            {'task_topics': {'$regex': regex_pattern, '$options': 'i'}},
-        ]
-    }, {"_id": 0}))
+    all_tasks = ''
 
     # Fetch saved jobs
     saved_jobs = list(saved_jobs_collection.find({"user_id": user_id}, {"_id": 0}))
@@ -414,35 +400,53 @@ def handle_jobseeker_dashboard(user_id, user_name, onboarding_details, resume_bu
                     'foreignField': 'job_id', 
                     'as': 'job_details'
                 }
-            },
+            },{
+            '$lookup': {
+                'from': 'profile_details', 
+                'localField': 'job_details.user_id', 
+                'foreignField': 'user_id', 
+                'as': 'company_details'
+            }
+        }, 
            {
         '$project': {
             '_id': 0, 
             'job_details._id':0
         },
     },
-    {"$sort":{"applied_on":-1}},
+    {"$sort":{"updated_at":-1}},
+        ]
+    taskpipeline = [
+            {
+                "$match": {"user_id": user_id}
+            },
+            {
+                '$lookup': {
+                    'from': 'tasks_details', 
+                    'localField': 'job_id', 
+                    'foreignField': 'job_id', 
+                    'as': 'task_details'
+                }
+            },
+           {
+        '$project': {
+            '_id': 0, 
+            'task_details._id':0
+        },
+    },
+    {"$sort":{"updated_at":-1}},
         ]
     applied_jobs = list(candidate_job_application_collection.aggregate(pipeline))
     #applied_jobs = list(candidate_job_application_collection.find({"user_id": user_id}, {"_id": 0}))
     
     # Fetch task proposals
-    task_proposals = list(candidate_task_proposal_collection.find({"user_id": user_id}, {"_id": 0}))
+    task_proposals = list(candidate_task_proposal_collection.aggregate(taskpipeline))
     
     # Fetch connections
     connections = list(connection_details_collection.find({"user_id": user_id}, {"_id": 0}))
 
     profile_details = profile_details_collection.find_one({"user_id": user_id}, {"_id": 0})
 
-    total_elements = jobs_details_collection.count_documents({
-        'status': 'published',
-        '$or': [
-            {'job_title': {'$regex': regex_pattern, '$options': 'i'}},
-            {'job_description': {'$regex': regex_pattern, '$options': 'i'}},
-            {'job_topics': {'$regex': regex_pattern, '$options': 'i'}},
-        ]
-    })
-    total_pages = calculate_total_pages(total_elements, page_size)
 
     return jsonify({
         "user_name": user_name,
@@ -454,7 +458,7 @@ def handle_jobseeker_dashboard(user_id, user_name, onboarding_details, resume_bu
         "task_proposals": task_proposals,
         "connections": connections,
         "profile_details": profile_details,
-        "total_pages": total_pages,
+        "total_pages": 3,
         "page_number": pageno
     })
 
@@ -753,8 +757,101 @@ def profile_update(user):
 
 @app.route("/profile-update", methods=['GET', 'POST'], endpoint='profile_update_info')
 @newlogin_is_required
-@is_candidate
 def profile_update_info(user):
+    user_id = user.get("user_id")
+    purpose = user.get("role")
+    user=user_details_collection.find_one({"user_id":user_id},{"_id":0,"password":0})
+    if request.method == 'POST':
+        form_data = dict(request.form) 
+        print(form_data,'formdata')
+        profile_photo=user.get("profile_photo")
+        if 'profile_pic' in request.files and str(request.files['profile_pic'].filename)!="":
+            profile_pic = request.files['profile_pic']
+            profile_photo=upload_file_firebase(profile_pic,f'{user_id}/profile_pic.png')
+        name= form_data.get("name")
+        email= form_data.get("email")
+        user_details_collection.update_one({"user_id": user_id},{"$set": {"email":email,"name":name,"profile_photo":profile_photo}})
+        profile_details_collection.update_one({"user_id": user_id},{"$set": {"name":name,"email":email}})
+        return jsonify({"message":"profile updated successfully"}),200
+    if profile_details := profile_details_collection.find_one({"user_id": user_id},{"_id": 0}):
+        if purpose == 'jobseeker':
+            return jsonify({ 'profile_details':profile_details, 'user_id':user_id}) 
+        elif purpose == 'hirer':
+            return jsonify({'profile_details':profile_details})
+        else:
+            abort(500, {"message" : "candidate or hirer not found in the records."})
+    else:
+        abort(500, {"message": f"DB Error: Profile Details for user_id {user_id} not found."})
+
+@app.route("/profile-sections-update", methods=['GET', 'POST'], endpoint='profile_sections_update')
+@newlogin_is_required
+def profile_sections_update(user):
+    user_id = user.get("user_id")
+    purpose = user.get("role")
+    user=user_details_collection.find_one({"user_id":user_id},{"_id":0,"password":0})
+    if request.method == 'POST':
+        form_data = dict(request.form) 
+        print(form_data,'formdata')
+        profile_photo=user.get("profile_photo")
+        if 'profile_pic' in request.files and str(request.files['profile_pic'].filename)!="":
+            profile_pic = request.files['profile_pic']
+            profile_photo=upload_file_firebase(profile_pic,f'{user_id}/profile_pic.png')
+        introduction= form_data.get("introduction")
+        education= form_data.get("education")
+        experience= form_data.get("experience")
+        skills= form_data.get("skills")
+        #user_details_collection.update_one({"user_id": user_id},{"$set": {"email":email,"name":name,"profile_photo":profile_photo}})
+        profile_details_collection.update_one({"user_id": user_id},{"$set": {"introduction":introduction,"education":education,"experience":experience,"skills":skills}})
+        return jsonify({"message":"profile updated successfully"}),200
+    if profile_details := profile_details_collection.find_one({"user_id": user_id},{"_id": 0}):
+        if purpose == 'jobseeker':
+            return jsonify({ 'profile_details':profile_details, 'user_id':user_id}) 
+        elif purpose == 'hirer':
+            return jsonify({'profile_details':profile_details})
+        else:
+            abort(500, {"message" : "candidate or hirer not found in the records."})
+    else:
+        abort(500, {"message": f"DB Error: Profile Details for user_id {user_id} not found."})
+
+@app.route("/company-sections-update", methods=['GET', 'POST'], endpoint='company_sections_update')
+@newlogin_is_required
+def company_sections_update(user):
+    user_id = user.get("user_id")
+    purpose = user.get("role")
+    user=user_details_collection.find_one({"user_id":user_id},{"_id":0,"password":0})
+    if request.method == 'POST':
+        form_data = dict(request.form) 
+        print(form_data,'formdata')
+        onboard=onboarding_details_collection.find_one({"user_id":user_id})
+        company_logo=onboard.get("company_logo")
+        print(request.files,'file check')
+        if 'company_logo' in request.files and str(request.files['company_logo'].filename)!="":
+            print(request.files,'companeey logo')
+            profile_pic = request.files['company_logo']
+            company_logo=upload_file_firebase(profile_pic,f'{user_id}/profile_pic.png')
+        companyName= form_data.get("companyName")
+        location= form_data.get("location")
+        industry= form_data.get("industry")
+        description= form_data.get("description")
+        print(company_logo,'company logo')
+        #user_details_collection.update_one({"user_id": user_id},{"$set": {"email":email,"name":name,"profile_photo":profile_photo}})
+        profile_details_collection.update_one({"user_id": user_id},{"$set": {"company_name":companyName,"location":location,"industry":industry,"company_logo":company_logo}})
+        onboarding_details_collection.update_one({"user_id":user_id},{"$set":{"company_name":companyName,"company_description":description,"company_logo":company_logo}})
+        return jsonify({"message":"profile updated successfully"}),200
+    if profile_details := profile_details_collection.find_one({"user_id": user_id},{"_id": 0}):
+        if purpose == 'jobseeker':
+            return jsonify({ 'profile_details':profile_details, 'user_id':user_id}) 
+        elif purpose == 'hirer':
+            return jsonify({'profile_details':profile_details})
+        else:
+            abort(500, {"message" : "candidate or hirer not found in the records."})
+    else:
+        abort(500, {"message": f"DB Error: Profile Details for user_id {user_id} not found."})
+
+@app.route("/profile-image", methods=['GET', 'POST'], endpoint='profile_image_info')
+@newlogin_is_required
+@is_candidate
+def profile_image_info(user):
     user_id = user.get("user_id")
     purpose = user.get("role")
     user=user_details_collection.find_one({"user_id":user_id},{"_id":0,"password":0})
@@ -797,6 +894,14 @@ def public_candidate_profile(user_id):
                     'as': 'user_details'
                 }
             },
+                        {
+                '$lookup': {
+                    'from': 'onboarding_details', 
+                    'localField': 'user_id', 
+                    'foreignField': 'user_id', 
+                    'as': 'onboarding_details'
+                }
+            },
             {
                 '$project': {
                     '_id': 0,
@@ -815,6 +920,7 @@ def public_candidate_profile(user_id):
 @newlogin_is_required
 @is_candidate
 def upload_intro_candidate(user):
+    print(user,'userId')
     user_id = user.get("user_id")
     if 'intro_video' in request.files and str(request.files['intro_video'].filename)!="":
         intro_video = request.files['intro_video']
@@ -840,7 +946,6 @@ def login_user():
                   role="jobseeker"
                if user.get("role")=="hirer":
                   role="hirer"
-               flash("Successfully Logged In")
                return jsonify({"message":"logged in","data":{"token":token,"user":{"name":user.get("name"),"purpose":role,"onboarded":user.get("onboarded")}}}),200
             else:
                return jsonify({"message":"login failed"}),400
@@ -915,8 +1020,7 @@ def register_jobseeker():
             user_details_collection.insert_one(user_details)
             return jsonify({"message":"successfully registered"}),200
         else:
-            flash("User already exists")
-            abort(500,{"messages": f"User already exist! "})
+            return jsonify({"message": "User already exist!"}),500
     else:
         return render_template("register_job_seeker.html")
 
@@ -958,7 +1062,7 @@ def chatbot(user):
                 messages = [{"user": "billbot","msg": "Hi, I am BillBot."}, {"user": "billbot", "msg": f"I see you have already uploaded a <a href={resume_link} target=_blank>Resume</a>. Click Yes, if you want to upload another resume and hit no to use BillBot to develope a resume using AI!"}]
             else:           
                 messages = [{"user": "billbot","msg": "Hi, I am BillBot."}, {"user": "billbot", "msg": "Do you have a pre-built resume?"}]
-            return jsonify({"messages":messages})
+            return jsonify({"messages":messages,"nxt_build_status":build_status})
         elif phase == "2":
             print(build_status,'build')
             messages = outbound_messages(build_status)
@@ -1006,6 +1110,17 @@ def resume_build(user):
     html_code = query_update_billbot(user_id, userMsg, nxt_build_status)
     add_html_to_db(user_id, html_code)
     return {"html_code" :str(html_code), "nxt_messages": outbound_messages(nxt_build_status_), "nxt_build_status": nxt_build_status_}
+
+@app.route("/save_html_resume", methods = ['POST'], endpoint='resume_html')
+@newlogin_is_required
+@is_candidate
+def resume_html(user):
+    user_id = user.get("user_id")
+    form_data = request.get_json(force=True)
+    html = form_data.get("html")
+    add_realhtml_to_db(user_id, html)
+    return {"html_code" :str(html), "message":"saved html to db"}
+
 
 @app.route("/current_build_status", methods = ['POST'], endpoint='current_build_status')
 @is_candidate
@@ -1126,6 +1241,118 @@ def allusers():
     users=list(user_details_collection.find({}, {'_id': 0,"password":0}))
     return jsonify({"users":users})
 
+@app.route("/allplans", methods = ['GET'], endpoint='allplans')
+def allplans():
+    users=list(plans_collection.find({}))
+    return jsonify({"users":users})
+
+@app.route("/allhirers", methods = ['GET'], endpoint='allhirers')
+def allhirers():
+    users=list(user_details_collection.find({"role":"hirer"}, {'_id': 0}))
+    pipeline = [
+            {"$match": {"role":"hirer","onboarded":True}},
+            {
+                '$lookup': {
+                    'from': 'resume', 
+                    'localField': 'user_id', 
+                    'foreignField': 'user_id', 
+                    'as': 'resume_details'
+                }
+            }, 
+            {
+                '$lookup': {
+                    'from': 'user_details', 
+                    'localField': 'user_id', 
+                    'foreignField': 'user_id', 
+                    'as': 'user_details'
+                }
+            },
+                        {
+                '$lookup': {
+                    'from': 'onboarding_details', 
+                    'localField': 'user_id', 
+                    'foreignField': 'user_id', 
+                    'as': 'onboarding_details'
+                }
+            },
+            {
+                '$project': {
+                    '_id': 0,
+                    'resume_details._id': 0,
+                    'user_details._id': 0
+                }
+            }
+        ]
+    companies= list(user_details_collection.aggregate(pipeline))
+    return jsonify({"hirers":users,"companies":companies})
+
+@app.route("/admin-dashboard", methods = ['GET'], endpoint='admin_dashboard')
+def admin_dashboard():
+    users=list(user_details_collection.find({"role":"hirer"}, {'_id': 0}))
+    pipeline = [
+            {"$match": {"role":"hirer","onboarded":True}},
+            {
+                '$lookup': {
+                    'from': 'profile_details', 
+                    'localField': 'user_id', 
+                    'foreignField': 'user_id', 
+                    'as': 'profile_details'
+                }
+            },
+                        {
+                '$lookup': {
+                    'from': 'onboarding_details', 
+                    'localField': 'user_id', 
+                    'foreignField': 'user_id', 
+                    'as': 'onboarding_details'
+                }
+            },
+            {
+                '$project': {
+                    '_id': 0,
+                    'onboarding_details._id': 0,
+                    'profile_details._id': 0
+                }
+            }
+        ]
+    pipeline_js = [
+            {"$match": {"role":"jobseeker","onboarded":True}},
+            {
+                '$lookup': {
+                    'from': 'resume', 
+                    'localField': 'user_id', 
+                    'foreignField': 'user_id', 
+                    'as': 'resume_details'
+                }
+            }, 
+            {
+                '$lookup': {
+                    'from': 'user_details', 
+                    'localField': 'user_id', 
+                    'foreignField': 'user_id', 
+                    'as': 'user_details'
+                }
+            },
+                        {
+                '$lookup': {
+                    'from': 'onboarding_details', 
+                    'localField': 'user_id', 
+                    'foreignField': 'user_id', 
+                    'as': 'onboarding_details'
+                }
+            },
+            {
+                '$project': {
+                    '_id': 0,
+                    'resume_details._id': 0,
+                    'user_details._id': 0
+                }
+            }
+        ]
+    companies= list(user_details_collection.aggregate(pipeline))
+    jobseekers= list(user_details_collection.aggregate(pipeline_js))
+    return jsonify({"jobseekers":jobseekers,"companies":companies})
+
 @app.route("/all-chats", methods = ['GET'], endpoint='allchats')
 def allchats():
     connections=list(connection_details_collection.find({},{'_id':0}))
@@ -1229,7 +1456,7 @@ def onboarding_hirer(user):
                 purpose='hirer'
              onboarding_details['user_id'] = user_id
              if user_details.get("onboarded") == False:
-                    data = {"onboarded": True}
+                    data = {"onboarded": True,"subscription":"basic"}
                     onboarding_details['status'] = "active"
                     if purpose and purpose == "hirer":
                         profile_data = {
@@ -1329,7 +1556,7 @@ def all_onboarding_details():
     #profiles=list(profile_details_collection.find({},{"_id": 0}))
     pipeline = [
             {
-                '$match': {}
+                '$match': {"role":"hirer","onboarded":True}
             }, {
                 '$lookup': {
                     'from': 'jobs_details', 
@@ -1337,15 +1564,25 @@ def all_onboarding_details():
                     'foreignField': 'user_id', 
                     'as': 'jobs_details'
                 }
-            }, {
+            },
+            {
+                '$lookup': {
+                    'from': 'profile_details', 
+                    'localField': 'user_id', 
+                    'foreignField': 'user_id', 
+                    'as': 'profile_details'
+                }
+            },
+              {
                 '$project': {
                     '_id': 0, 
-                    'jobs_details._id': 0
+                    'jobs_details._id': 0,
+                    'profile_details._id':0
                 }
             }
         ]
     
-    profiles = list(profile_details_collection.aggregate(pipeline))
+    profiles = list(user_details_collection.aggregate(pipeline))
     return jsonify({'companies':companies,'profiles':profiles})
     
 @app.route('/create_job',methods=['POST'], endpoint="create_job")
@@ -1447,11 +1684,34 @@ def apply_job(user,job_id):
                 "hirer_id": job_details.get("user_id"),
                 "user_id": user_id,
                 "applied_on": datetime.now(),
+                "updated_at": datetime.now(),
                 "status": "Applied",
+                "seen": False
             }
             if candidate_job_application_collection.find_one({"user_id": user_id, "job_id": job_id},{"_id": 0}):
                return jsonify({"success":False, "message":"applied already"}),400
             candidate_job_application_collection.insert_one(job_apply_data)
+            new=len(list(candidate_job_application_collection.find({"job_id":job_id,"seen":False})))
+              # Update or create job-specific notification
+            notification_collection.update_one(
+        {
+            "user_id": job_details["user_id"],
+            "type": "job",
+            "related_id": str(job_id)
+        },
+        {
+            "$set": {
+                "type": "job",
+                "message": f"{new} new applicants for '{job_details['job_title']}'",
+                "related_id": str(job_id),
+                "updated_at": datetime.now(),
+                "is_read": False,
+                "is_new": True
+            },
+            "$inc": {"new_applicants_count": 1}  # Increment new applicant count
+        },
+        upsert=True
+    )
             flash("Successfully Applied for the Job. Recruiters will get back to you soon, if you are a good fit.")
             return jsonify({"success":True, "applied":True})
         else:
@@ -1501,7 +1761,18 @@ def change_job_status(user,candidate_user_id):
     form_data = request.get_json(force=True)
     status = form_data.get("status")
     job_id = form_data.get("job_id")
-    candidate_job_application_collection.update_one({"job_id": job_id, 'user_id': candidate_user_id},{"$set": {"status": status} })
+    candidate_job_application_collection.update_one({"job_id": job_id, 'user_id': candidate_user_id},{"$set": {"status": status,"updated_at":datetime.now()} })
+    notification={
+    "notification_id": str(uuid.uuid4()),
+    "user_id": candidate_user_id,
+    "type": "application",
+    "message": f"Your application has been {status}!",
+    "job_id": job_id,
+    "is_read": False,
+    "is_new": True,
+    "created_at": datetime.now()
+     }
+    notification_collection.insert_one(notification)
     return {"success":True,"message":"status updated successfully"}
 
 
@@ -1558,6 +1829,7 @@ def job_responses(user,job_id):
     }
         ]
         all_responses = list(candidate_job_application_collection.aggregate(pipeline))
+        candidate_job_application_collection.update_many({"job_id":job_id},{"$set":{"seen":True}})
         return jsonify({"job_id":job_id, "all_responses":all_responses, "job_details":job_details, "total_pages":total_pages, "page_number":page_number})
     
 
@@ -1613,7 +1885,53 @@ def all_job_responses(user):
         all_responses = list(candidate_job_application_collection.aggregate(pipeline))
         return jsonify({"all_responses":all_responses, "total_pages":total_pages, "page_number":page_number})
     
-
+@app.route('/all-candidates', methods=['GET', 'POST'], endpoint="all_candidates")
+@newlogin_is_required
+@is_hirer
+@is_onboarded
+def all_candidates(user):
+        pageno = request.args.get("pageno")
+        page_number = 1  # The page number you want to retrieve
+        if pageno is not None:
+            page_number = int(pageno)
+        page_size = 7   # Number of documents per page
+        total_elements = len(list(candidate_job_application_collection.find()))
+        total_pages = calculate_total_pages(total_elements, page_size)
+        skip = (page_number - 1) * page_size
+        pipeline = [
+                      {
+                "$match": {"role": "jobseeker"}
+            },
+            {
+                '$lookup': {
+                    'from': 'onboarding_details', 
+                    'localField': 'user_id', 
+                    'foreignField': 'user_id', 
+                    'as': 'candidate_details'
+                }
+            },
+             {
+                '$lookup': {
+                    'from': 'resume', 
+                    'localField': 'user_id', 
+                    'foreignField': 'user_id', 
+                    'as': 'resume_details'
+                }
+            },
+           {
+        '$project': {
+            '_id': 0, 
+            'user_details._id': 0,
+            'candidate_details._id': 0,
+            'resume_details._id':0
+        },
+    },{
+        '$sort':{'applied_on':-1}
+    }
+        ]
+        all_responses = list(user_details_collection.aggregate(pipeline))
+        return jsonify({"all_responses":all_responses, "total_pages":total_pages, "page_number":page_number})
+    
 @app.route("/alltasks", methods = ['GET'], endpoint='alltasks')
 @newlogin_is_required
 def alltasks(user):
@@ -2371,9 +2689,10 @@ def all_chats(user):
     key = "hirer_id" if purpose == "hirer" else "jobseeker_id"
     localField = "hirer_id" if purpose == "jobseeker" else "jobseeker_id"
     localAs = "hirer_details" if purpose == "jobseeker" else "jobseeker_details"
+    statusLocalAs = "hirer_details_status" if purpose == "jobseeker" else "jobseeker_details_status"
     pipeline = [
          {
-                "$match": {key: user_id}
+                "$match": {key: user_id,"status": { "$ne": "closed" }}
             },
          {
                 '$lookup': {
@@ -2381,6 +2700,14 @@ def all_chats(user):
                     'localField': localField, 
                     'foreignField': 'user_id', 
                     'as': localAs
+                }
+            },
+             {
+                '$lookup': {
+                    'from': 'user_details', 
+                    'localField': localField, 
+                    'foreignField': 'user_id', 
+                    'as': statusLocalAs
                 }
             },
          {
@@ -2766,6 +3093,17 @@ def initiate_workstream(user,proposer_id, task_id):
             abort(500, {"message": "Either job_id or jobseeker_id is wrong!"})
     return jsonify({"message":"initiated"}),200
 
+@app.route("/close_chat/<string:jobseeker_id>/<string:job_id>", methods =['GET'], endpoint="close_chat")
+@newlogin_is_required
+@is_hirer
+def close_chat(user,jobseeker_id, job_id):
+    user_id = user.get("user_id")
+    if  connection_details_collection.find_one({"jobseeker_id": jobseeker_id, "hirer_id": user_id,"job_id":job_id},{"_id": 0}):
+        connection_details_collection.update_one({"jobseeker_id": jobseeker_id, "hirer_id": user_id,"job_id":job_id},{"$set":{"status":"closed"}})
+        return jsonify({"message":"chat closed"}),200
+    else:
+        return jsonify({"message":"chat close failed!"}),400
+
 ###### FAIZAN #####
 
 #Function to get user by id    
@@ -2909,8 +3247,11 @@ def filter_jobs(user):
     job_category=request.args.get("job_category")
     salary_from=request.args.get("salary_from")
     salary_to=request.args.get("salary_to")
-    print(request.args,'args')
     query = {}
+    resume_skills = get_resume_skills(user_id)
+    regex= create_skills_regex_pattern(resume_skills)
+    # Fetch all jobs matching the user's skills
+    regex_pattern=regex
     if job_title:
         query['job_title'] = {"$regex": job_title, "$options": "i"}
     if experience_level:
@@ -2981,10 +3322,19 @@ def filter_jobs(user):
                     {"job_description": {"$regex": searched_for, "$options": "i"}},
                     {"job_type": {"$regex": searched_for, "$options": "i"}},
                     {"job_topics": {"$regex": searched_for, "$options": "i"}},
-                    {"job_category": {"$regex": searched_for, "$options": "i"}}
+                    {"job_category": {"$regex": searched_for, "$options": "i"}},
+                    {"onboarding_details.company_name": {"$regex": searched_for, "$options": "i"}}
                 ]
             }
         })
+
+    if not searched_for:
+       print('not query')
+       query['$or'] = [
+        {'job_title': {'$regex': regex_pattern, '$options': 'i'}},
+        {'job_description': {'$regex': regex_pattern, '$options': 'i'}},
+        {'job_topics': {'$regex': regex_pattern, '$options': 'i'}},
+    ]
 
     if query:
         pipeline.append({"$match": query})
@@ -3012,6 +3362,45 @@ def filter_jobs(user):
             if applied := candidate_job_application_collection.find_one({"job_id": job.get("job_id"),"user_id": user_id},{"_id": 0}):
                 pass
             else:
+                all_updated_jobs.append(job)
+    if(len(list(all_updated_jobs))==0):
+        print('zero jobs')
+        if(not searched_for):
+            all_jobs=list(jobs_details_collection.aggregate([{
+            "$match": {"status":"published"}},{
+            '$lookup': {
+                'from': 'jobs_details', 
+                'localField': 'job_id', 
+                'foreignField': 'job_id', 
+                'as': 'job_details'
+            }
+        }, 
+            {
+            '$lookup': {
+                'from': 'profile_details', 
+                'localField': 'user_id', 
+                'foreignField': 'user_id', 
+                'as': 'onboarding_details'
+            }
+        }, 
+        {
+                '$lookup': {
+                    'from': 'saved_jobs', 
+                    'localField': 'job_id', 
+                    'foreignField': 'job_id', 
+                    'as': 'saved_jobs_details'
+                }
+            }, 
+        {
+            '$project': {
+                '_id': 0,
+                'job_details._id': 0
+            }
+        }]))
+            for idx, job in enumerate(all_jobs):
+             if applied := candidate_job_application_collection.find_one({"job_id": job.get("job_id"),"user_id": user_id},{"_id": 0}):
+                pass
+             else:
                 all_updated_jobs.append(job)
     return jsonify({'all_jobs': all_updated_jobs})
 
@@ -3373,7 +3762,6 @@ def user_typing(user):
             "is_typing": is_typing,
         }
     )
-
     return jsonify({"message": "Typing status broadcasted"}), 200
 
 @app.route('/plans', methods=['GET'])
@@ -3402,7 +3790,7 @@ def upgrade_plan():
 
     # Update the user's subscription
     user_details_collection.update_one(
-        {"_id": user_id},
+        {"user_id": user_id},
         {"$set": {"subscription": plan_id, "job_limit": plan["job_limit"]}},
         upsert=True
     )
@@ -3414,10 +3802,124 @@ def get_user_subscription(user_id):
     """
     Fetch the user's subscription plan details.
     """
-    user = user_details_collection.find_one({"_id": user_id}, {"_id": 0, "subscription": 1})
+    user = user_details_collection.find_one({"user_id": user_id}, {"_id": 0})
+    plans=list(plans_collection.find({}))
+    print(plans,user,'plan')
     plan = plans_collection.find_one({"_id":user.get("subscription")})
     jobs=jobs_details_collection.find({"user_id":user_id})
-    plan["job_count"]=len(list(jobs))
+    jobscount=len(list(jobs))
+    if jobscount>0:
+       plan["job_count"]=len(list(jobs))
+    else:
+        plan["job_count"]=0
     if not user:
         return jsonify({"error": "User not found"}), 404
     return jsonify({"user":user,"plan":plan}), 200
+
+@app.route('/notifications', methods=['GET'],endpoint='get_notifications')
+@newlogin_is_required
+def get_notifications(user):
+    # Retrieve query parameters
+    user_id=user.get("user_id")
+    notification_type = request.args.get('type')  # e.g., "job_recommendation"
+    is_read = request.args.get('is_read')        # e.g., "true" or "false"
+    start_date = request.args.get('start_date')  # e.g., "2024-11-01"
+    end_date = request.args.get('end_date')      # e.g., "2024-11-23"
+
+    query = {"user_id": user_id}
+    if notification_type:
+        query["type"] = notification_type
+    if is_read is not None:
+        query["is_read"] = is_read.lower() == "true"
+    if start_date:
+        query["created_at"] = {"$gte": datetime.fromisoformat(start_date)}
+    if end_date:
+        query["created_at"] = query.get("created_at", {})
+        query["created_at"]["$lte"] = datetime.fromisoformat(end_date)
+
+    notifications = list(notification_collection.find(query).sort("created_at", -1))
+    for notification in notifications:
+        notification["_id"] = str(notification["_id"])  # Convert ObjectId to string
+    return jsonify({"notifications":notifications}), 200
+
+@app.route('/hirer-notifications', methods=['GET'],endpoint='get_hirer_notifications')
+@newlogin_is_required
+def get_hirer_notifications(user):
+    # Retrieve query parameters
+    user_id=user.get("user_id")
+    notification_type = request.args.get('type')  # e.g., "job_recommendation"
+    is_read = request.args.get('is_read')        # e.g., "true" or "false"
+    start_date = request.args.get('start_date')  # e.g., "2024-11-01"
+    end_date = request.args.get('end_date')      # e.g., "2024-11-23"
+
+    query = {"user_id": user_id}
+    if notification_type:
+        query["type"] = notification_type
+    if is_read is not None:
+        query["is_read"] = is_read.lower() == "true"
+    if start_date:
+        query["created_at"] = {"$gte": datetime.fromisoformat(start_date)}
+    if end_date:
+        query["created_at"] = query.get("created_at", {})
+        query["created_at"]["$lte"] = datetime.fromisoformat(end_date)
+
+    notifications = list(notification_collection.find(query).sort("updated_at", -1))
+    for notification in notifications:
+        notification["_id"] = str(notification["_id"])  # Convert ObjectId to string
+    return jsonify({"notifications":notifications}), 200
+
+@app.route('/new-notifications', methods=['GET'],endpoint='new_notifications')
+@newlogin_is_required
+def new_notifications(user):
+    # Retrieve query parameters
+    user_id=user.get("user_id")
+    notifications = list(notification_collection.find({"is_new":True,"user_id":user_id}).sort("created_at", -1))
+    for notification in notifications:
+        notification["_id"] = str(notification["_id"])  # Convert ObjectId to string
+    return jsonify({"notifications":notifications}), 200
+
+@app.route('/markasread-notifications', methods=['GET'],endpoint='read_notifications')
+@newlogin_is_required
+def read_notifications(user):
+    # Retrieve query parameters
+    user_id=user.get("user_id")
+    notification_collection.update_many({"is_new":True,"user_id":user_id},{"$set":{"is_new":False}})
+    return jsonify({"notifications":"marked as read"}), 200
+
+def addplans():
+    allplans=[
+    {
+      "_id":"basic",
+      "features": [
+        "Post up to 5 jobs"
+      ], 
+      "job_limit": 5, 
+      "name": "Basic Plan", 
+      "price": 0
+    }, 
+    {
+      "_id":"premium",
+      "features": [
+        "Post up to 20 jobs", 
+        "Priority support"
+      ], 
+      "job_limit": 20, 
+      "name": "Premium Plan", 
+      "price": 50
+    }, 
+    {
+      "_id":"enterprise",
+      "features": [
+        "Post up to 50 jobs", 
+        "Dedicated account manager", 
+        "Custom support"
+      ], 
+      "job_limit": 50, 
+      "name": "Enterprise Plan", 
+      "price": 100
+    }
+  ]
+    #plans_collection.delete_many({})
+    #plans_collection.insert_many(allplans)
+
+addplans()
