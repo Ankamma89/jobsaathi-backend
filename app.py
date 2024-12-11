@@ -827,8 +827,8 @@ def company_sections_update(user):
         print(request.files,'file check')
         if 'company_logo' in request.files and str(request.files['company_logo'].filename)!="":
             print(request.files,'companeey logo')
-            profile_pic = request.files['company_logo']
-            company_logo=upload_file_firebase(profile_pic,f'{user_id}/profile_pic.png')
+            company_logo = request.files['company_logo']
+            company_logo=upload_file_firebase(company_logo,f'{user_id}/company_logo.png')
         companyName= form_data.get("companyName")
         location= form_data.get("location")
         industry= form_data.get("industry")
@@ -1204,7 +1204,7 @@ def have_resume(user):
     print(data,'data')
     resume_data = {"user_id": user_id,"resume_html":data.get('resumeFormat'),"json_template":data.get("json_template")}
     resume_details_collection.insert_one(resume_data)
-    resume_html,template = get_resume_html_db(user_id)
+    #resume_html,template,res = get_resume_html_db(user_id)
     profile=profile_details_collection.find_one({"user_id":user_id})
     name=profile.get('name')
     statement="i am"+" "+name
@@ -1238,7 +1238,8 @@ def all_jobs():
 
 @app.route("/allusers", methods = ['GET'], endpoint='allusers')
 def allusers():
-    users=list(user_details_collection.find({}, {'_id': 0,"password":0}))
+    #users=list(user_details_collection.find({}, {'_id': 0,"password":0}))
+    users=list(user_details_collection.find({"role":'hirer'}, {'_id': 0}))
     return jsonify({"users":users})
 
 @app.route("/allplans", methods = ['GET'], endpoint='allplans')
@@ -3263,7 +3264,7 @@ def filter_jobs(user):
     if mode_of_work:
         query['mode_of_work'] = mode_of_work
     if job_location:
-        query['job_location'] = job_location
+        query['job_location'] =  {'$regex': job_location, '$options': 'i'}
     if job_posted:
         query['created_on'] = job_posted
     if job_category:
@@ -3328,7 +3329,7 @@ def filter_jobs(user):
             }
         })
 
-    if not searched_for:
+    if not searched_for or not query:
        print('not query')
        query['$or'] = [
         {'job_title': {'$regex': regex_pattern, '$options': 'i'}},
@@ -3365,7 +3366,8 @@ def filter_jobs(user):
                 all_updated_jobs.append(job)
     if(len(list(all_updated_jobs))==0):
         print('zero jobs')
-        if(not searched_for):
+        if(not searched_for and not query):
+            print(query,'zero found')
             all_jobs=list(jobs_details_collection.aggregate([{
             "$match": {"status":"published"}},{
             '$lookup': {

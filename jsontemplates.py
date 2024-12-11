@@ -1,35 +1,39 @@
-simple={
-"title": "",
+simple = {
+  "jobTitle": "",
   "name": "",
   "email": "",
   "phone": "",
   "linkedin": "",
   "portfolio": "",
-  "skills": [
-    { "category": "", "list": [] },
-  ],
+  "about": "",
+  "skills": [""],
   "experience": [
     {
       "position": "",
-      "timeline": "",
-      "details": []
+      "company": "",
+      "startDate": "",
+      "endDate": "",
+      "responsibilities": [
+       ""
+      ]
     }
   ],
   "education": [
     {
       "degree": "",
-      "institution": "",
-      "timeline": "",
-      "relevantCoursework": []
+      "university": "",
+      "year": "",
+      "coursework": [""]
     }
   ],
   "projects": [
     {
-      "name": "",
+      "title": "",
       "description": ""
     }
   ]
 }
+
 
 modern = {
   "name": "",
@@ -41,15 +45,12 @@ modern = {
   "skills": [
     { "skill": "skill name", "progress": "0%" },
   ],
-  "experience": [
+  "workExperience": [
     {
       "position": "",
       "company": "",
       "timeline": "",
-      "details": [
-        "",
-        ""
-      ]
+      "details": ""
     }
   ],
   "education": [
@@ -76,10 +77,11 @@ proffessional = {
         {
             "date": "",
             "position": "",
+            "company": "",
             "details": ""
         }
     ],
-       "education": [{
+      "education": [{
       "date": "",
       "institution": "",
       "degree": "",
@@ -109,8 +111,9 @@ creative={
   "workExperience": [
         {
             "position": "",
+            "company": "",
             "timeline": "",
-            "description": ""
+            "details": ""
         },
   ],
   "projects": [
@@ -118,7 +121,7 @@ creative={
       "name": "",
       "company": "",
       "period": "",
-      "description": ""
+      "details": ""
     }
   ]
 }
