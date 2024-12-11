@@ -1,7 +1,10 @@
 Flask==2.0.1
 pymongo[srv]==4.3.3
 firebase==3.0.1
+pyjwt
 python-jwt==4.0.0
+gunicorn
+python-dotenv
 gcloud==0.18.3
 sseclient==0.0.27
 pycryptodome==3.18.0
@@ -17,5 +20,6 @@ PyPDF2==3.0.1
 icecream==2.1.3
 authlib
 pusher
-python-dotenv
 setuptools
+flask_cors
+razorpay
