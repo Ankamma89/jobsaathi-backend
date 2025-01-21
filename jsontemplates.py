@@ -126,9 +126,35 @@ creative={
   ]
 }
 
+special={
+    "name": "",
+    "jobTitle": "",
+    "contact": {
+        "phone": "",
+        "email": "",
+        "website": ""
+    },
+    "skills": [""],
+    "about": "",
+    "experience": [
+        {
+            "role": "",
+            "company": "",
+            "duration": "",
+            "description": ""
+        }
+    ],
+    "education": {
+        "degree": "",
+        "school": "",
+        "year": ""
+    }
+}
+
 templates = {
     "simple":simple,
     "modern":modern,
     "proffessional": proffessional,
-    "creative": creative
+    "creative": creative,
+    "special": special
 }

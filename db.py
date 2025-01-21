@@ -7,9 +7,9 @@ if ENVIRONMENT == "local":
     MONGO_USERNAME = os.environ["MONGO_USERNAME"]
     MONGO_PASSWORD = os.environ["MONGO_PASSWORD"]
     DB_NAME = os.environ["DB_NAME"]
-    #connection_string = f"mongodb+srv://{MONGO_USERNAME}:{MONGO_PASSWORD}@{MONGO_CLUSTER}/?retryWrites=true&ssl=true&w=majority"
+    connection_string = f"mongodb+srv://{MONGO_USERNAME}:{MONGO_PASSWORD}@{MONGO_CLUSTER}/?retryWrites=true&ssl=true&w=majority"
     connection_string = "mongodb://localhost:27017/jobsaathinew-prod"
-    #DB_NAME = "jobsaathinew-prod"
+    DB_NAME = "jobsaathinew-prod"
 else:    
     MONGO_CLUSTER = os.environ["MONGO_URI"]
     MONGO_USERNAME = os.environ["MONGO_USERNAME"]
@@ -38,3 +38,7 @@ task_chat_details_collection = db_client['task_chat_details']
 task_seen_by_collection = db_client['task_seen_by']
 plans_collection = db_client['plans_details']
 notification_collection = db_client['notification_details']
+quiz_collection = db_client['quiz_details']
+interviews_collection = db_client['interview_details']
+courses_collection = db_client['courses_details']
+interviewqas_collection = db_client['interviewqas_details']

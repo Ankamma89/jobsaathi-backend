@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang='en'>
+
+<head>
+  <meta charset='UTF-8'>
+  <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+  <title>Resume for Rajesh</title>
+  <style>
+    /* Fonts */
+    h1 {
+      font-family: 'Julius Sans One', sans-serif;
+      font-weight: 300;
+      font-size: 1.2cm;
+      transform: scale(1, 1.15);
+      margin: 0.2cm 0;
+      text-transform: uppercase;
+      color: #111;
+    }
+
+    h2 {
+      font-family: 'Archivo Narrow', sans-serif;
+      margin: 0.1cm 0;
+      color: white;
+    }
+
+    h3 {
+      font-family: 'Open Sans', sans-serif;
+    }
+
+    .smallText,
+    .smallText span,
+    .smallText p,
+    .smallText a {
+      font-family: 'Source Sans Pro', sans-serif;
+      font-size: 0.35cm;
+      text-align: justify;
+    }
+
+    .contactIcon {
+      width: 0.5cm;
+      text-align: center;
+    }
+
+    .white {
+      color: white;
+    }
+
+    .leftPanel,
+    .leftPanel a {
+      color: #bebebe;
+      text-decoration: none;
+      font-size: 0.38cm;
+    }
+
+    .bolded {
+      font-weight: bold;
+    }
+
+    /* Layout */
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Source Sans Pro', sans-serif;
+    }
+
+    page {
+      background: white;
+      margin: 0 auto 0.5cm;
+    }
+
+    page[size='A4'] {
+      width: 21cm;
+      height: 29.7cm;
+    }
+
+    @page {
+      size: 21cm 29.7cm;
+      padding: 0;
+      margin: 0;
+    }
+
+    .container {
+      display: flex;
+      width: 100%;
+      height: 100%;
+    }
+
+    .leftPanel {
+      width: 37%;
+      background-color: #484444;
+      padding: 0.7cm;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .rightPanel {
+      width: 63%;
+      padding: 0.7cm;
+    }
+
+    .leftPanel img {
+      width: 4cm;
+      height: 4cm;
+      margin-bottom: 0.7cm;
+      border-radius: 50%;
+      border: 0.15cm solid white;
+      object-fit: cover;
+    }
+
+    .details {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .yearsOfExperience {
+      width: 1.6cm;
+      display: flex;
+      justify-content: center;
+    }
+
+    .workExperience ul {
+      list-style-type: none;
+      padding-left: 0;
+    }
+
+    .workExperience li {
+      position: relative;
+      margin: 0;
+      padding-bottom: 0.5cm;
+      padding-left: 0.5cm;
+    }
+
+    .workExperience li:before {
+      background-color: #b8abab;
+      width: 0.05cm;
+      content: '';
+      position: absolute;
+      top: 0.1cm;
+      bottom: -0.2cm;
+      left: 0.05cm;
+    }
+
+    .workExperience li::after {
+      content: '';
+      position: absolute;
+      background-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" viewBox="0 0 32 32" focusable="false"%3E%3Ccircle stroke="none" fill="%23484444" cx="16" cy="16" r="10"%3E%3C/circle%3E%3C/svg%3E');
+      left: -0.09cm;
+      top: 0;
+      width: 0.35cm;
+      height: 0.35cm;
+    }
+
+    p {
+      margin: 0.05cm 0;
+    }
+  </style>
+</head>
+
+<body>
+  <page size='A4'>
+    <div class='container'>
+      <!-- Left Panel -->
+      <aside class='leftPanel'>
+        <img src='profile.jpg' alt='Profile picture of Rajesh'>
+        <section class='details'>
+          <div class='item bottomLineSeparator'>
+            <h2>CONTACT</h2>
+            <div class='smallText'>
+              <p><i class='fa fa-phone contactIcon'></i> (+91) 777 777 7777</p>
+              <p><i class='fa fa-envelope contactIcon'></i> <a href='mailto:rajeshmn47@gmail.com'>rajeshmn47@gmail.com</a></p>
+              <p><i class='fa fa-map-marker contactIcon'></i> New York, USA</p>
+            </div>
+          </div>
+          <div class='item bottomLineSeparator'>
+            <h2>SKILLS</h2>
+            <div class='smallText'>
+              <div class='skill'><div>React 4&nbsp;years</div></div>
+              <div class='skill'><div>Angular 4&nbsp;years</div></div>
+              <div class='skill'><div>AI 1&nbsp;year</div></div>
+            </div>
+          </div>
+          <div class='item'>
+            <h2>EDUCATION</h2>
+            <div class='smallText'>
+              <p class='bolded white'>Bachelor of Economics</p>
+              <p>The University of Sydney</p>
+              <p>2010 - 2014</p>
+            </div>
+          </div>
+        </section>
+      </aside>
+
+      <!-- Right Panel -->
+      <main class='rightPanel'>
+        <header>
+          <h1>Rajesh</h1>
+          <h3>Software Engineer</h3>
+        </header>
+        <section>
+          <h2>About Me</h2>
+          <p>I am a software engineer with 4 years of experience, specializing in anti-money laundering software. Skilled in React and Angular, I am passionate about creating efficient, secure software solutions.</p>
+        </section>
+        <section class='workExperience'>
+          <h2>Work Experience</h2>
+          <ul>
+            <li>
+              <div class='jobPosition'><span class='bolded'>Software Engineer</span> <span>Jan 2022 - Present</span></div>
+              <p>Responsible for designing and developing anti-money laundering software solutions for our clients. Worked closely with AML teams to ensure compliance with regulations and effective crime prevention.</p>
+            </li>
+            <li>
+              <div class='jobPosition'><span class='bolded'>Software Engineer</span> <span>Jun 2020 - Dec 2021</span></div>
+              <p>Developed software solutions for various industries, gaining experience in full-stack development and a variety of technologies.</p>
+            </li>
+          </ul>
+        </section>
+      </main>
+    </div>
+  </page>
+</body>
+
+</html>
