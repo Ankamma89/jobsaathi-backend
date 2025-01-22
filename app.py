@@ -4154,6 +4154,18 @@ def get_scheduled_interviews(user):
     
     return jsonify(scheduled_interviews), 200
 
+@app.route('/api/all-interviews', methods=['GET'],endpoint="get_all_interviews")
+@newlogin_is_required
+def get_all_interviews(user):
+    user_id = user.get('user_id')  # Get the user ID from the query params
+    if not user_id:
+        return jsonify({"message": "User ID is required."}), 400
+
+    # Fetch interviews where the jobseeker is the one being interviewed (i.e., by their user ID)
+    scheduled_interviews = list(interviews_collection.find({}))
+    
+    return jsonify(scheduled_interviews), 200
+
 @app.route('/api/edit-interview/<interview_id>', methods=['PUT'])
 def edit_interview(interview_id):
     data = request.get_json()
