@@ -3,7 +3,7 @@ load_dotenv()  # Load environment variables from .env file
 from json import dumps
 from flask import Flask, json, request, render_template, redirect, abort, session, flash, make_response
 from client_secret import client_secret, initial_html
-from db import task_seen_by_collection, tasks_details_collection,user_details_collection, onboarding_details_collection, jobs_details_collection, candidate_job_application_collection,candidate_task_proposal_collection, chatbot_collection, resume_details_collection, profile_details_collection, saved_jobs_collection,task_chat_details_collection, chat_details_collection, connection_details_collection, connection_task_details_collection,plans_collection,notification_collection
+from db import task_seen_by_collection, tasks_details_collection,user_details_collection, onboarding_details_collection, jobs_details_collection, candidate_job_application_collection,candidate_task_proposal_collection, chatbot_collection, resume_details_collection, profile_details_collection, saved_jobs_collection,task_chat_details_collection, chat_details_collection, connection_details_collection, connection_task_details_collection,plans_collection,notification_collection,quiz_collection,interviews_collection,interviewqas_collection,courses_collection
 from helpers import  query_update_billbot,get_resume_html_db, add_html_to_db,add_realhtml_to_db, analyze_resume, upload_file_firebase, extract_text_pdf, outbound_messages, next_build_status, updated_build_status, text_to_html, calculate_total_pages, mbsambsasmbsa
 from jitsi import create_jwt
 import os
@@ -14,6 +14,7 @@ from bson import ObjectId
 import json
 from flask.json import JSONEncoder
 import requests
+import subprocess
 import pathlib
 from google.oauth2 import id_token
 from google_auth_oauthlib.flow import Flow
@@ -26,6 +27,7 @@ from flask_cors import CORS
 from collections import Counter
 import re
 import razorpay
+from apscheduler.schedulers.background import BackgroundScheduler
 
 
 # Initialize Razorpay client
@@ -783,6 +785,24 @@ def profile_update_info(user):
     else:
         abort(500, {"message": f"DB Error: Profile Details for user_id {user_id} not found."})
 
+@app.route("/change-password", methods=['GET', 'POST'], endpoint='change_password')
+@newlogin_is_required
+def change_password(user):
+    user_id = user.get("user_id")
+    user=user_details_collection.find_one({"user_id":user_id})
+    if request.method == 'POST':
+        form_data = dict(request.form) 
+        print(form_data,'formdata')
+        password=user.get("password")
+        if  password==form_data.get("currentPassword"):
+            newpassword=form_data.get("newPassword")
+            user_details_collection.update_one({"user_id": user_id},{"$set": {"password":newpassword}})
+            return jsonify({"message":"password updated successfully"}),200
+        else:
+            abort(500, {"message" : "password is not wrong."})
+    else:
+        abort(500, {"message": f"DB Error: Profile Details for user_id {user_id} not found."})
+
 @app.route("/profile-sections-update", methods=['GET', 'POST'], endpoint='profile_sections_update')
 @newlogin_is_required
 def profile_sections_update(user):
@@ -1201,14 +1221,15 @@ def have_resume(user):
     user_id = user.get("user_id")
     onboarding_details_collection.update_one({"user_id": user_id}, {"$set": {"phase": "2"}})
     data=request.get_json(force=True)
-    print(data,'data')
+    print(data,'ab-data')
     resume_data = {"user_id": user_id,"resume_html":data.get('resumeFormat'),"json_template":data.get("json_template")}
     resume_details_collection.insert_one(resume_data)
+    resume_details_collection.update_one({"user_id": user_id},{"$set": {"json_template": data.get("json_template")}})
     #resume_html,template,res = get_resume_html_db(user_id)
     profile=profile_details_collection.find_one({"user_id":user_id})
     name=profile.get('name')
     statement="i am"+" "+name
-    html_code=query_update_billbot(user_id,statement, 'nxt_build_status_')
+    html_code=query_update_billbot(user_id,statement, 'introduction')
     add_html_to_db(user_id, html_code)
     return jsonify({"message":"updated successfully"})
 
@@ -1218,7 +1239,7 @@ def have_resume(user):
 def rebuild_resume(user):
     user_id = user.get("user_id")
     onboarding_details_collection.update_one({"user_id": user_id}, {"$set": {"phase": "1","build_status":"introduction","resume_built":False}})
-    resume_details_collection.delete_one({"user_id": user_id})
+    resume_details_collection.delete_many({"user_id": user_id})
     return jsonify({"message":"updated successfully"})
 
 @app.route("/allresumes", methods = ['GET'], endpoint='allresumes')
@@ -1239,7 +1260,7 @@ def all_jobs():
 @app.route("/allusers", methods = ['GET'], endpoint='allusers')
 def allusers():
     #users=list(user_details_collection.find({}, {'_id': 0,"password":0}))
-    users=list(user_details_collection.find({"role":'hirer'}, {'_id': 0}))
+    users=list(user_details_collection.find({"role":'jobseeker'}, {'_id': 0}))
     return jsonify({"users":users})
 
 @app.route("/allplans", methods = ['GET'], endpoint='allplans')
@@ -3248,7 +3269,9 @@ def filter_jobs(user):
     job_category=request.args.get("job_category")
     salary_from=request.args.get("salary_from")
     salary_to=request.args.get("salary_to")
+    company=request.args.get("company")
     query = {}
+    salary_query={}
     resume_skills = get_resume_skills(user_id)
     regex= create_skills_regex_pattern(resume_skills)
     # Fetch all jobs matching the user's skills
@@ -3280,8 +3303,30 @@ def filter_jobs(user):
        query['created_on'] = {"$gte":start,"$lt":end}
     #if salary_from:
      #   query['salary_from'] = {"$gte":int(0)}
-    if salary_from:
-        query['salary_from'] = {"$gte":int(salary_from)}
+    if company:
+        query["onboarding_details.company_name"]=company
+    if(salary_from and salary_to):
+        salary_query={
+            '$or': [
+                {
+                    '$and': [
+                        {'salary_from': {'$gte': int(salary_from)}},
+                        {'salary_to': {'$lte': int(salary_from)}}
+                    ]
+                },
+                {
+                    '$and': [
+                        {'salary_to': {'$gte': int(salary_to)}},
+                        {'salary_from': {'$lte': int(salary_to)}}
+                    ]
+                }
+            ]
+        }
+
+    elif(salary_from):
+        query['salary_from']={'$gte': int(salary_from)}
+
+    filters=dict(query)
 
     pipeline = [
         {
@@ -3324,13 +3369,19 @@ def filter_jobs(user):
                     {"job_type": {"$regex": searched_for, "$options": "i"}},
                     {"job_topics": {"$regex": searched_for, "$options": "i"}},
                     {"job_category": {"$regex": searched_for, "$options": "i"}},
-                    {"onboarding_details.company_name": {"$regex": searched_for, "$options": "i"}}
+                    {"onboarding_details.company_name": {"$regex": searched_for, "$options": "i"}},
                 ]
             }
         })
+    if salary_query:
+        pipeline.append(
+            {
+                "$match":salary_query
+            }
+        )
 
-    if not searched_for or not query:
-       print('not query')
+    if not searched_for and not filters and not salary_query:
+       print(filters,'filters not query')
        query['$or'] = [
         {'job_title': {'$regex': regex_pattern, '$options': 'i'}},
         {'job_description': {'$regex': regex_pattern, '$options': 'i'}},
@@ -3357,6 +3408,7 @@ def filter_jobs(user):
             }
         }
     ])
+    print(pipeline,'salary_from')
     all_jobs = list(jobs_details_collection.aggregate(pipeline))
     all_updated_jobs = []
     for idx, job in enumerate(all_jobs):
@@ -3365,8 +3417,8 @@ def filter_jobs(user):
             else:
                 all_updated_jobs.append(job)
     if(len(list(all_updated_jobs))==0):
-        print('zero jobs')
-        if(not searched_for and not query):
+        print(searched_for,filters,'zero jobs')
+        if(not searched_for and not filters and not salary_query):
             print(query,'zero found')
             all_jobs=list(jobs_details_collection.aggregate([{
             "$match": {"status":"published"}},{
@@ -3426,8 +3478,6 @@ def ufilter_jobs():
         query['job_title'] = {"$regex": job_title, "$options": "i"}
     if experience_level:
         query['experience_level'] = experience_level
-    if salary_range:
-        query['salary_range'] = salary_range
     if job_type:
         query['job_type'] = job_type
     if mode_of_work:
@@ -3450,8 +3500,6 @@ def ufilter_jobs():
        query['created_on'] = {"$gte":start,"$lt":end}
     if salary_from:
         query['salary_from'] = {"$gte":int(salary_from)}
-    if salary_to:
-        query['salary_to'] = {"$lt":int(salary_to)}
     pipeline = [
         {
             '$lookup': {
@@ -3888,6 +3936,423 @@ def read_notifications(user):
     notification_collection.update_many({"is_new":True,"user_id":user_id},{"$set":{"is_new":False}})
     return jsonify({"notifications":"marked as read"}), 200
 
+@app.route('/markasread-hirer-notifications/<notification_id>', methods=['GET'],endpoint='read_hirer_notifications')
+@newlogin_is_required
+def read_hirer_notifications(user,notification_id):
+    # Retrieve query parameters
+    notification_id=notification_id
+    user_id=user.get("user_id")
+    notification_collection.update_one({"related_id":notification_id},{"$set":{"is_read":True}})
+    return jsonify({"notifications":"marked as read"}), 200
+
+@app.route('/markasread-jobseeker-notifications/<notification_id>', methods=['GET'],endpoint='read_jobseeker_notifications')
+@newlogin_is_required
+def read_jobseeker_notifications(user,notification_id):
+    # Retrieve query parameters
+    notification_id=notification_id
+    user_id=user.get("user_id")
+    notification_collection.update_one({"notification_id":notification_id},{"$set":{"is_read":True}})
+    return jsonify({"notifications":"marked as read"}), 200
+
+# Route to fetch all quizzes
+@app.route('/api/learning-data', methods=['GET'])
+def get_learning_data():
+    #quizzes = list(quiz_collection.find({},{"_id": 0}))
+    quizzes = list(quiz_collection.find({}))
+    courses = list(courses_collection.find({}))
+    interviewqas = list(interviewqas_collection.find({}))
+    #return dumps(quizzes), 200
+    return jsonify({"message": "Quizzes fetched successfully", "quizzes": quizzes,"courses":courses,"interviewqas":interviewqas}), 201
+
+# Route to create a new quiz
+@app.route('/api/quizzes', methods=['POST'],endpoint='create_quiz')
+def create_quiz():
+    print('abcd')
+    data = request.get_json(force=True)
+    print(data,'data')
+    type=data.get('type')
+    quiz_title = data.get('title')
+    questions = data.get('questions')
+
+    # Ensure both fields are present
+    if not quiz_title or not questions:
+        return jsonify({"error": "Quiz title and questions are required"}), 400
+
+    quiz_data = {
+        'type':type,
+        'title': quiz_title,
+        'questions': questions
+    }
+
+    # Insert quiz into MongoDB
+    quiz_collection.insert_one(quiz_data)
+
+    return jsonify({"message": "Quiz created successfully", "quiz": quiz_data}), 201
+
+@app.route('/api/quizzes/<quiz_id>', methods=['POST'], endpoint='update_quiz')
+def update_quiz(quiz_id):
+    data = request.get_json(force=True)
+    print(data,'data')
+    quiz_title = quiz_id
+    questions = data.get('questions')
+    type = data.get('type')
+
+    # Ensure both fields are present
+    if not quiz_title:
+        return jsonify({"error": "Quiz title and questions are required"}), 400
+
+    # Prepare updated data
+    updated_data = {
+        'title': quiz_title,
+        'questions': questions
+    }
+
+    print(updated_data,'updated data')
+    # Update quiz in MongoDB
+    result = quiz_collection.update_one(
+        {'title': quiz_id},
+        {'$set': updated_data}
+    )
+
+    return jsonify({"message": "Quiz updated successfully", "quiz": updated_data}), 200
+
+# Route to fetch all quizzes
+@app.route('/api/quizzes', methods=['GET'])
+def get_quizzes():
+    #quizzes = list(quiz_collection.find({},{"_id": 0}))
+    quizzes = list(quiz_collection.find({}))
+    #return dumps(quizzes), 200
+    return jsonify({"message": "Quizzes fetched successfully", "quizzes": quizzes}), 201
+
+@app.route('/api/quizzes/<quiz_id>', methods=['DELETE'], endpoint='delete_quiz')
+def delete_quiz(quiz_id):
+    result = quiz_collection.delete_one({'_id': ObjectId(quiz_id)})
+    if result.deleted_count:
+        return jsonify({"message": "Quiz deleted successfully"}), 200
+    else:
+        return jsonify({"error": "Quiz not found"}), 404
+
+# Route to get questions for a specific quiz
+@app.route('/api/quizzes/<quizname>', methods=['GET'])
+def get_quiz_questions(quizname):
+    quiz = quiz_collection.find_one({'title': quizname})
+    if not quiz:
+        return jsonify({"error": "Quiz not found"}), 404
+
+    return jsonify(quiz), 200
+
+@app.route('/api/run-code', methods=['POST'])
+def run_code():
+    data = request.json
+    code = data.get('code')
+    language = data.get('language')
+
+    if language == 'python':
+        result = execute_python(code)
+    elif language == 'java':
+        result = execute_java(code)
+    else:
+        result = 'Unsupported language'
+
+    return jsonify({'output': result})
+
+def execute_python(code):
+    try:
+        # Execute Python code safely
+        result = subprocess.run(['python3', '-c', code], capture_output=True, text=True, timeout=5)
+        return result.stdout or result.stderr
+    except Exception as e:
+        return str(e)
+
+def execute_java(code):
+    try:
+        with open('Solution.java', 'w') as file:
+            file.write(code)
+        # Compile and run Java code
+        subprocess.run(['javac', 'Solution.java'], capture_output=True, text=True)
+        result = subprocess.run(['java', 'Solution'], capture_output=True, text=True)
+        return result.stdout or result.stderr
+    except Exception as e:
+        return str(e)
+
+@app.route('/api/book-interview', methods=['POST'], endpoint="book_interview")
+@newlogin_is_required
+def book_interview(user):
+    # Extract the interview booking details from the request
+    data = request.get_json()
+    user_id = user.get('user_id')
+    candidate_name = user.get('name')
+    email = user.get('email')
+    topic = data.get('topic')
+    date = data.get('date')
+    time = data.get('time')
+    interview_type = data.get('type')  # Extract type from request
+
+    # Basic validation
+    if not all([user_id, candidate_name, email, topic, date, time]):
+        return jsonify({"message": "All fields are required."}), 400
+
+    # Additional validation (e.g., email format, date-time validation)
+    if not is_valid_email(email):
+        return jsonify({"message": "Invalid email format."}), 400
+
+    if not is_valid_datetime(date, time):
+        return jsonify({"message": "Invalid date or time format."}), 400
+    channel_id = f"{user_id}_{time}_{date}"
+    # Generate interview link
+    meet_link = f"https://{url_}/{channel_id}"
+    # Dummy database interaction (replace with actual database logic)
+    try:
+        interview = {
+        "user_id": user_id,
+        "candidate_name": candidate_name,
+        "email": email,
+        "topic": topic,
+        "date": date,
+        "time": time,
+        "type": interview_type,  # Include type
+        "status": "scheduled",
+        "meet_link": meet_link,
+        "notes": 'notes',
+        "created_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.utcnow().isoformat()
+    }
+        result = interviews_collection.insert_one(interview)
+        return jsonify({"message": "Interview booked successfully."}), 200
+    except Exception as e:
+        return jsonify({"message": "An error occurred while booking the interview.", "error": str(e)}), 500
+
+def save_interview_booking_to_db(user_id, candidate_name, email, topic, date, time):
+    # Mock function to simulate database interaction
+    # Replace with actual database code (e.g., SQLAlchemy, MongoDB operations)
+    print(f"Booking saved: {user_id}, {candidate_name}, {email}, {topic}, {date}, {time}")
+
+# Utility functions for validation
+def is_valid_email(email):
+    # Basic check for valid email format
+    import re
+    return re.match(r"[^@]+@[^@]+\.[^@]+", email)
+
+def is_valid_datetime(date, time):
+    # Basic check to validate date and time format
+    from datetime import datetime
+    try:
+        datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
+        return True
+    except ValueError:
+        return False
+
+@app.route('/api/get-scheduled-interviews', methods=['GET'],endpoint="")
+@newlogin_is_required
+def get_scheduled_interviews(user):
+    user_id = user.get('user_id')  # Get the user ID from the query params
+    if not user_id:
+        return jsonify({"message": "User ID is required."}), 400
+
+    # Fetch interviews where the jobseeker is the one being interviewed (i.e., by their user ID)
+    scheduled_interviews = list(interviews_collection.find({"user_id": user_id}))
+    
+    return jsonify(scheduled_interviews), 200
+
+@app.route('/api/all-interviews', methods=['GET'],endpoint="get_all_interviews")
+@newlogin_is_required
+def get_all_interviews(user):
+    user_id = user.get('user_id')  # Get the user ID from the query params
+    if not user_id:
+        return jsonify({"message": "User ID is required."}), 400
+
+    # Fetch interviews where the jobseeker is the one being interviewed (i.e., by their user ID)
+    scheduled_interviews = list(interviews_collection.find({}))
+    
+    return jsonify(scheduled_interviews), 200
+
+@app.route('/api/edit-interview/<interview_id>', methods=['PUT'])
+def edit_interview(interview_id):
+    data = request.get_json()
+    updated_fields = {key: value for key, value in data.items() if value}
+    updated_fields['updated_at'] = datetime.utcnow().isoformat()
+
+    result = interviews_collection.update_one(
+        {"_id": ObjectId(interview_id)},
+        {"$set": updated_fields}
+    )
+
+    if result.matched_count == 1:
+        return jsonify({"message": "Interview updated successfully"}), 200
+    else:
+        return jsonify({"message": "Interview not found"}), 404
+
+
+@app.route('/api/delete-interview/<interview_id>', methods=['DELETE'])
+def delete_interview(interview_id):
+    result = interviews_collection.delete_one({"_id": ObjectId(interview_id)})
+    if result.deleted_count == 1:
+        return jsonify({"message": "Interview deleted successfully"}), 200
+    else:
+        return jsonify({"message": "Interview not found"}), 404
+
+# Route to create a new quiz
+@app.route('/api/create-course', methods=['POST'],endpoint='create_course')
+def create_course():
+    print('abcd')
+    data = request.get_json(force=True)
+    print(data,'data')
+    course_id=str(uuid.uuid4())
+    course_title = data.get('title')
+    description = data.get('description')
+    price = data.get('price')
+    created_at = datetime.now()
+
+    # Ensure both fields are present
+    if not course_title or not description or not price or not created_at:
+        return jsonify({"error": "course title and questions are required"}), 400
+
+    course_data = {
+        'course_id':course_id,
+        'title': course_title,
+        'description': description,
+        'price':price,
+        'created_at':created_at
+    }
+
+    # Insert quiz into MongoDB
+    courses_collection.insert_one(course_data)
+
+    return jsonify({"message": "course created successfully", "course": course_data}), 201
+
+# Get list of courses
+@app.route('/api/courses', methods=['GET'], endpoint='get_courses')
+def get_courses():
+    courses = list(courses_collection.find({}, {'_id': 0}))
+    return jsonify(courses), 200
+
+# Get a single course by ID
+@app.route('/api/get-course/<course_id>', methods=['GET'], endpoint='get_course')
+def get_course(course_id):
+    course = courses_collection.find_one({'course_id': course_id}, {'_id': 0})
+    if course:
+        return jsonify(course), 200
+    return jsonify({'message': 'Course not found'}), 404
+
+# Edit a course
+@app.route('/api/edit-course/<course_id>', methods=['POST'], endpoint='edit_course')
+def edit_course(course_id):
+    data = request.get_json()
+    update_result = courses_collection.update_one(
+        {'course_id': course_id},
+        {'$set': data}
+    )
+    if update_result.matched_count > 0:
+        return jsonify({'message': 'Course updated'}), 200
+    return jsonify({'message': 'Course not found'}), 404
+
+# Delete a course
+@app.route('/api/delete-course/<course_id>', methods=['GET'], endpoint='delete_course')
+def delete_course(course_id):
+    delete_result = courses_collection.delete_one({'course_id': course_id})
+    print(course_id,'courseid')
+    if delete_result.deleted_count > 0:
+        return jsonify({'message': 'Course deleted'}), 200
+    return jsonify({'message': 'Course not found'}), 404
+
+@app.route('/api/buy-course', methods=['POST'])
+def buy_course():
+    user_id = request.json.get('user_id')
+    course_id = request.json.get('course_id')
+
+    result = user_details_collection.update_one(
+        {'user_id': user_id},
+        {'$addToSet': {'purchased_courses': course_id}}
+    )
+
+    if result.modified_count > 0:
+        return jsonify({"message": "Course purchased successfully"}), 200
+    return jsonify({"message": "Error purchasing course"}), 400
+
+@app.route('/api/check-course-purchased', methods=['GET'])
+def check_course_purchased():
+    user_id = request.args.get('user_id')
+    course_id = request.args.get('course_id')
+    user = user_details_collection.find_one({'user_id': user_id, 'purchased_courses': course_id})
+    if user:
+        return jsonify({"purchased": True}), 200
+    return jsonify({"purchased": False}), 200
+
+# Endpoint to create interview question and answer
+@app.route('/api/create-interview-section', methods=['POST'], endpoint='create_interview_qa')
+def create_interview_qa():
+    data = request.json
+    title = data.get('title')
+    description = data.get('description')
+    qa = data.get('qa')  # Array of questions and answers
+
+    if not title or not description or not qa:
+        return jsonify({"error": "Title, description, and QA array are required"}), 400
+
+    interview_data = {
+        'title': title,
+        'description': description,
+        'qa': qa,  # Expected to be an array of {'question': ..., 'answer': ...}
+        'created_at': datetime.now()
+    }
+
+    result = interviewqas_collection.insert_one(interview_data)
+    return jsonify({"message": "Interview section created successfully", "id": str(result.inserted_id)}), 201
+
+# Endpoint to get all interview questions and answers
+@app.route('/api/get-interview-qas', methods=['GET'], endpoint='get_interview_qas')
+def get_interview_qas():
+    interview_qas = list(interviewqas_collection.find())
+    for qa in interview_qas:
+        qa['_id'] = str(qa['_id'])  # Convert ObjectId to string for JSON serialization
+    return jsonify(interview_qas), 200
+
+# Endpoint to delete an interview question and answer
+@app.route('/api/delete-interview-qa/<string:id>', methods=['GET'], endpoint='delete_interview_qa')
+def delete_interview_qa(id):
+    result = interviewqas_collection.delete_one({'_id': ObjectId(id)})
+    if result.deleted_count == 0:
+        return jsonify({"error": "Interview question and answer not found"}), 404
+    return jsonify({"message": "Interview question and answer deleted successfully"}), 200
+
+@app.route('/api/get-interview-qa/<id>', methods=['GET'])
+def get_interview_questions(id):
+    interview = interviewqas_collection.find_one({'_id': ObjectId(id)})
+    if not interview:
+        return jsonify({"error": "interviewqa not found"}), 404
+
+    return jsonify(interview), 200
+
+@app.route('/api/qa/<qa_id>', methods=['POST'], endpoint='update_qa')
+def update_qa(qa_id):
+    data = request.get_json(force=True)
+    print(data,'data')
+    qa_id = qa_id
+    qa_title = data.get('title')
+    description = data.get('description')
+    questions = data.get('qa')
+
+    # Ensure both fields are present
+    if not qa_title:
+        return jsonify({"error": "Quiz title and questions are required"}), 400
+
+    # Prepare updated data
+    updated_data = {
+        'title': qa_title,
+        'description':description,
+        'qa': questions
+    }
+
+    print(updated_data,'updated data')
+    # Update quiz in MongoDB
+    result = interviewqas_collection.update_one(
+        {'_id': ObjectId(qa_id)},
+        {'$set': updated_data}
+    )
+
+    return jsonify({"message": "QA updated successfully", "quiz": updated_data}), 200
+
+
 def addplans():
     allplans=[
     {
@@ -3925,3 +4390,70 @@ def addplans():
     #plans_collection.insert_many(allplans)
 
 addplans()
+
+#from apscheduler.schedulers.background import BackgroundScheduler
+#from flask import Flask
+#import requests
+
+# Function to fetch external jobs from the API and save them to MongoDB
+def fetch_and_save_external_jobs():
+    api_url = "https://production.apna.co/user-profile-orchestrator/public/v1/jobs/?search=true&text=accenture&entity_id=22&entity_type=Department&department_id=22&page=2&page_size=14"
+    print('starting')
+    try:
+        response = requests.get(api_url)
+        data = response.json()  # Assuming the response is 
+        jobs=data.get("results").get("jobs")
+        if isinstance(jobs, list):
+            for jobData in jobs:
+                # Check if the job is external
+                #print(jobData,'testda')
+                job=jobData
+                if job.get('is_external_job', True):  
+                    # Create a unique job ID
+                    job_id = str(uuid.uuid4())
+                    job['job_id'] = job_id
+                    job['created_on'] = datetime.now()
+                    job['is_external'] = True  # Mark as external job
+                    print(job.get('description'),"job")
+                    # Prere the job data to insert into MongoDB
+                     
+
+        # Organization details
+                    organization = job.get('organization', {})
+                    job['organization_name'] = organization.get('name', '')
+                    job['organization_logo'] = organization.get('logo_url', '')
+
+        # Address details
+                    address = job.get('address', {})
+                    city = address.get('city', {})
+                    job['city_name'] = city.get('name', '')
+
+        # Experience details
+                    job['min_experience'] = job.get('min_experience', 0)
+                    job['max_experience'] = job.get('max_experience', 0)
+
+        # Salary details
+                    job['min_salary'] = job.get('min_salary', 0)
+                    job['max_salary'] = job.get('max_salary', 0)
+                    job['salary_detail'] = job.get('salary_detail', 'Not disclosed')
+
+        # External URL
+                    job['external_job_url'] = job.get('external_job_url', '')
+
+        # Handle missing or null values gracefully
+                    job_application_mode = job.get('job_application_mode') or {}
+                    job['application_mode'] = job_application_mode.get('mode', 'unknown')
+
+        # Save job to MongoDB
+                    jobs_details_collection.insert_one(job)
+                    print(f"External job added to MongoDB: {job['title']}")
+
+    except Exception as e:
+        print(f"Error fetching or saving external jobs: {e}")
+
+# Set up the cron job with APScheduler
+#fetch_and_save_external_jobs()
+#scheduler = BackgroundScheduler()
+#scheduler.add_job(fetch_and_save_external_jobs, 'interval', min=1)  # Run every 24 hours
+#scheduler.start()
+

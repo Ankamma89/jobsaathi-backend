@@ -72,15 +72,30 @@ def query_update_billbot(user_id, statement, build_status):
     print(build_status,"build_status")
     temp=templates.get(json_template,proffessional)
     if build_status=='introduction':
-      json = llm_chain.run({"json": str(temp),"statement": {statement},"profile":profile}) 
-      return json
+        try:
+           json = llm_chain.run({"json": str(temp),"statement": {statement},"profile":profile}) 
+           return json
+        except:
+           return resume_json
     elif build_status=='endofchecklist':
             print(build_status,'stat')
             json = llm_chain.run({"json": str(temp),"statement": {statement},"profile":resume_json}) 
-            return json
+            if is_valid_json(json):
+               print("The output is valid JSON.")
+               return json
+            else:
+              print("The output is not valid JSON.")
+              try:
+                json=llm_chain.run({"json": str(temp),"statement": {statement},"profile":resume_json}) 
+                return json
+              except:
+                 return resume_json
     else:
-      json = llm_chain.run({"json": str(temp),"statement": {build_status:statement},"profile":resume_json}) 
-      return json
+      try:
+        json = llm_chain.run({"json": str(temp),"statement": {build_status:statement},"profile":resume_json}) 
+        return json
+      except:
+          return resume_json
 
 def get_resume_html_db(user_id):
     if resume_data := resume_details_collection.find_one({"user_id": user_id}):
@@ -97,6 +112,13 @@ def add_html_to_db(user_id, json):
 
 def add_realhtml_to_db(user_id, html):
     resume_details_collection.update_one({"user_id": user_id},{"$set": {"resume_html": html}})
+
+def is_valid_json(json_string):
+    try:
+        json.loads(json_string)
+        return True
+    except json.JSONDecodeError:
+        return False
 
 def analyze_resume(user_id, text=False):
     if not text:
